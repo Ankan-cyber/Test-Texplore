@@ -1,0 +1,385 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Simplified Role Enum
+enum Role {
+  member
+  coordinator
+  vice_president
+  president
+  admin
+}
+
+// User Status Enum
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// Event Status Enum
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+  ARCHIVED
+}
+
+// Attendance Status Enum
+enum AttendanceStatus {
+  REGISTERED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+}
+
+// Contact Status Enum
+enum ContactStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// Join Club Application Status Enum
+enum JoinClubApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+}
+
+// Department Model
+model Department {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String  @unique
+  displayName String
+  description String?
+  isActive    Boolean @default(true)
+
+  // Relations
+  users  User[]
+  events Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Core User Model - Simplified
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  email         String    @unique
+  name          String
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Profile & Status
+  profile Profile?
+  status  UserStatus @default(PENDING)
+
+  // Simplified Role & Permissions
+  role        Role
+  permissions String[] // Direct permission array
+
+  // Department
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Event Relations
+  eventOrganizations EventOrganizer[]
+  eventAttendances   EventAttendee[]
+
+  // Other Relations
+  contactSubmissions ContactSubmission[]
+  galleryUploads     GalleryImage[]
+  galleryFolders     GalleryFolder[]
+
+  // Created Events
+  createdEvents Event[]
+
+  // Audit Relations
+  assignedUsers      User[]              @relation("UserAssigner")
+  assignedBy         User?               @relation("UserAssigner", fields: [assignedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignedById       String?             @db.ObjectId
+  PasswordResetToken PasswordResetToken?
+}
+
+model PasswordResetToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// User Profile (Extended Info)
+model Profile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  fullName String?
+  bio      String?
+  year     Int?
+  phone    String?
+  linkedin String?
+  github   String?
+
+  // Club-specific fields
+  joinDate DateTime @default(now())
+  skills   String[] // Array of skills
+  projects String[] // Array of project IDs
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Events System
+model Event {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  slug        String @unique
+
+  // Event Details
+  startDate DateTime
+  endDate   DateTime
+  location  String?
+  isOnline  Boolean  @default(false)
+  links     String[] // Array of optional links with format "Display Name|URL"
+
+  // Capacity & Registration
+  maxCapacity          Int?
+  isRegistrationOpen   Boolean   @default(true)
+  registrationDeadline DateTime?
+
+  // Event Status
+  status     EventStatus @default(DRAFT)
+  isFeatured Boolean     @default(false)
+
+  // Media & Content
+  imageUrl String?
+  tags     String[]
+  category String?
+
+  // Creator
+  createdById String @db.ObjectId
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Department
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Relations
+  registrations EventRegistration[]
+  organizers    EventOrganizer[]
+  attendances   EventAttendee[]
+  galleryImages GalleryImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Event Registration
+model EventRegistration {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  // Public registration fields (for non-authenticated users)
+  fullName         String?
+  emailId          String?
+  college          String?
+  department       String?
+  phoneNumber      String?
+  year             String?
+  registrationType String? // 'internal' or 'external'
+  enrollmentNumber String? // Enrollment number for internal students
+
+  // Registration details
+  status           AttendanceStatus @default(REGISTERED)
+  registrationDate DateTime         @default(now())
+  notes            String?
+}
+
+// Event Organizers
+model EventOrganizer {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @db.ObjectId
+  userId  String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  role       String? // organizer, co-organizer, etc.
+  assignedAt DateTime @default(now())
+  assignedBy String?  @db.ObjectId
+
+  @@unique([eventId, userId])
+}
+
+// Event Attendees
+model EventAttendee {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @db.ObjectId
+  userId  String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  status       AttendanceStatus @default(REGISTERED)
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  notes        String?
+
+  @@unique([eventId, userId])
+}
+
+// Contact Submissions
+model ContactSubmission {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  name    String
+  email   String
+  message String
+
+  status     ContactStatus @default(PENDING)
+  assignedTo String?       @db.ObjectId
+  notes      String?
+
+  // Reply fields
+  hasReply  Boolean   @default(false)
+  replyText String?
+  repliedBy String?   @db.ObjectId
+  repliedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Gallery Folder (for organizing images)
+model GalleryFolder {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  slug        String  @unique // URL-friendly name
+
+  // Hierarchical structure
+  parentId String?         @db.ObjectId
+  parent   GalleryFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children GalleryFolder[] @relation("FolderHierarchy")
+
+  // Content
+  images GalleryImage[]
+
+  // Metadata
+  createdBy  String  @db.ObjectId
+  creator    User    @relation(fields: [createdBy], references: [id])
+  isPublic   Boolean @default(false)
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([createdBy])
+}
+
+// Enhanced Gallery Image
+model GalleryImage {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // File information
+  originalName String
+  fileName     String // Cloudinary public_id
+  fileUrl      String // Cloudinary URL
+  thumbnailUrl String? // Optimized thumbnail
+  fileSize     Int // Size in bytes
+  mimeType     String
+
+  // Organization
+  folderId String?        @db.ObjectId
+  folder   GalleryFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  // Metadata
+  title       String?
+  description String?
+  tags        String[]
+  altText     String? // For accessibility
+
+  // Cloudinary specific
+  cloudinaryId   String @unique // Public ID in Cloudinary
+  cloudinaryData Json? // Store additional Cloudinary metadata
+
+  // Permissions & Status
+  uploadedBy String    @db.ObjectId
+  uploader   User      @relation(fields: [uploadedBy], references: [id])
+  isApproved Boolean   @default(false)
+  approvedBy String?   @db.ObjectId
+  approvedAt DateTime?
+  isPublic   Boolean   @default(false)
+
+  // Event association (optional)
+  eventId String? @db.ObjectId
+  event   Event?  @relation(fields: [eventId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([folderId])
+  @@index([uploadedBy])
+  @@index([eventId])
+  @@index([isApproved])
+}
+
+// Join Club Application Model
+model JoinClubApplication {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Personal Information
+  name        String
+  email       String
+  phoneNumber String
+
+  // Academic Information
+  branch      String
+  year        String
+  departments String[] // Array of selected departments
+
+  // Motivation
+  whyJoin String
+
+  // Application Status
+  status JoinClubApplicationStatus @default(PENDING)
+
+  // Review Information
+  reviewedBy    String?   @db.ObjectId
+  reviewedAt    DateTime?
+  reviewNotes   String?
+  interviewDate DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
