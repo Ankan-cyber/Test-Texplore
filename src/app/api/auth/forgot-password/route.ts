@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { sendPasswordResetEmail } from '@/lib/email';
+import { generateResetToken, hashResetToken } from '@/lib/reset-token';
 import { z } from 'zod';
+import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
 
 const requestSchema = z.object({ email: z.string().email() });
 
-function generateToken(length = 48) {
-  const chars =
-    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let token = '';
-  for (let i = 0; i < length; i++)
-    token += chars[Math.floor(Math.random() * chars.length)];
-  return token;
-}
-
 export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting per IP address
+    const clientIp = getClientIp(request.headers);
+    const rateLimitResponse = checkRateLimit(clientIp, RATE_LIMIT_CONFIGS.PASSWORD_RESET_REQUEST);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const body = await request.json();
     const { email } = requestSchema.parse(body);
 
@@ -25,18 +25,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const token = generateToken();
+    const token = generateResetToken();
+    const tokenHash = hashResetToken(token);
     const expiresAt = new Date(Date.now() + 1000 * 60 * 15); // 15 minutes
 
     await prisma.passwordResetToken.upsert({
       where: { userId: user.id },
-      update: { token, expiresAt },
-      create: { userId: user.id, token, expiresAt },
+      update: { token: tokenHash, expiresAt },
+      create: { userId: user.id, token: tokenHash, expiresAt },
     });
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || '';
-    const origin = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+    const origin = baseUrl.startsWith('http') ? baseUrl : `${baseUrl}`;
     const resetLink = `${origin}/auth/reset-password?token=${token}`;
     await sendPasswordResetEmail(user.email, user.name || '', resetLink);
 

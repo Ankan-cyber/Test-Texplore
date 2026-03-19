@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getCurrentUser, verifyPassword, hashPassword } from '@/lib/auth';
+import { verifyPassword, hashPassword } from '@/lib/auth';
+import { requireAuthenticatedUser } from '@/lib/api-guards';
 import { z } from 'zod';
 
 const changePasswordSchema = z
@@ -20,16 +21,18 @@ const changePasswordSchema = z
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
     const body = await request.json();
     const { currentPassword, newPassword } = changePasswordSchema.parse(body);
 
     // Fetch fresh user with password
-    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const dbUser = await prisma.user.findUnique({
+      where: { id: authResult.user.id },
+    });
     if (!dbUser || !dbUser.password) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const hashed = await hashPassword(newPassword);
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: authResult.user.id },
       data: { password: hashed },
     });
 

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/session';
-import { hasPermission } from '@/lib/permissions';
+import {
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
 
 // MongoDB ObjectId validation regex
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
@@ -41,24 +43,18 @@ export async function GET(
       );
     }
 
-    // Check authentication and permissions
-    const session = await getSession();
-    if (!session?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get user data
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
     // Check if user has permission to view join club applications
-    if (!hasPermission(user.permissions, 'join-club:view')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'join-club:view',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     // Get the application
@@ -97,24 +93,18 @@ export async function PUT(
       );
     }
 
-    // Check authentication and permissions
-    const session = await getSession();
-    if (!session?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get user data
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
     // Check if user has permission to manage join club applications
-    if (!hasPermission(user.permissions, 'join-club:manage')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'join-club:manage',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
     const body = await request.json();
 
@@ -138,7 +128,7 @@ export async function PUT(
       where: { id },
       data: {
         ...validatedData,
-        reviewedBy: user.id,
+        reviewedBy: authResult.user.id,
         reviewedAt: new Date(),
         ...(validatedData.interviewDate && {
           interviewDate: new Date(validatedData.interviewDate),
@@ -178,24 +168,18 @@ export async function DELETE(
       );
     }
 
-    // Check authentication and permissions
-    const session = await getSession();
-    if (!session?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get user data
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
     // Check if user has permission to delete join club applications
-    if (!hasPermission(user.permissions, 'join-club:delete')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'join-club:delete',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     // Check if application exists

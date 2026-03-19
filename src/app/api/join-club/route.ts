@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/session';
-import { hasPermission } from '@/lib/permissions';
+import {
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
+import { joinClubListQuerySchema, parseQuery } from '@/lib/api-schemas';
+import {
+  createIdempotencyFingerprint,
+  getIdempotencyKey,
+  getIdempotencyReplay,
+  persistIdempotencyResponse,
+  releaseIdempotencyKey,
+  reserveIdempotencyKey,
+} from '@/lib/idempotency';
 
 // Validation schema for join club application
 const joinClubApplicationSchema = z.object({
@@ -27,11 +38,35 @@ const joinClubApplicationSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const idempotencyKey = getIdempotencyKey(request);
+  const idempotencyScope = 'join-club-application';
+  let fingerprint: string | null = null;
+
   try {
     const body = await request.json();
 
     // Validate the request body
     const validatedData = joinClubApplicationSchema.parse(body);
+
+    if (idempotencyKey) {
+      fingerprint = createIdempotencyFingerprint({
+        email: validatedData.email.toLowerCase().trim(),
+        branch: validatedData.branch,
+        year: validatedData.year,
+        departments: validatedData.departments,
+      });
+
+      const replayResponse = getIdempotencyReplay(
+        idempotencyScope,
+        idempotencyKey,
+        fingerprint,
+      );
+      if (replayResponse) {
+        return replayResponse;
+      }
+
+      reserveIdempotencyKey(idempotencyScope, idempotencyKey, fingerprint);
+    }
 
     // Check if an application already exists for this email
     const existingApplication = await prisma.joinClubApplication.findFirst({
@@ -58,14 +93,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         message: 'Application submitted successfully',
         applicationId: application.id,
       },
       { status: 201 },
     );
+
+    if (idempotencyKey && fingerprint) {
+      return await persistIdempotencyResponse(
+        idempotencyScope,
+        idempotencyKey,
+        response,
+      );
+    }
+
+    return response;
   } catch (error) {
+    if (idempotencyKey) {
+      releaseIdempotencyKey(idempotencyScope, idempotencyKey);
+    }
+
     console.error('Error submitting join club application:', error);
 
     if (error instanceof z.ZodError) {
@@ -84,46 +133,41 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication and permissions
-    const session = await getSession();
-    if (!session?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
     // Check if user has permission to view join club applications
-    if (!hasPermission(user.permissions, 'join-club:view')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'join-club:view',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     // Get query parameters
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const search = searchParams.get('search');
+    const query = parseQuery(
+      joinClubListQuerySchema,
+      new URL(request.url).searchParams,
+    );
 
     // Build where clause
     const where: any = {};
-    if (status) {
-      where.status = status;
+    if (query.status) {
+      where.status = query.status;
     }
-    if (search) {
+    if (query.search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { branch: { contains: search, mode: 'insensitive' } },
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { branch: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
     // Calculate pagination
-    const skip = (page - 1) * limit;
+    const skip = (query.page - 1) * query.limit;
 
     // Get applications with pagination
     const [applications, total] = await Promise.all([
@@ -131,7 +175,7 @@ export async function GET(request: NextRequest) {
         where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take: query.limit,
       }),
       prisma.joinClubApplication.count({ where }),
     ]);
@@ -139,10 +183,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       applications,
       pagination: {
-        page,
-        limit,
+        page: query.page,
+        limit: query.limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / query.limit),
       },
     });
   } catch (error) {

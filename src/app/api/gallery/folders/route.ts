@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canUploadPhotos, canReadGallery } from '@/lib/permissions';
+import { requireAuthenticatedUser, requireUserPermission } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 
@@ -22,15 +21,16 @@ const updateFolderSchema = z.object({
 // GET /api/gallery/folders - Get all folders
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canReadGallery(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:read',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -84,15 +84,16 @@ export async function GET(request: NextRequest) {
 // POST /api/gallery/folders - Create new folder
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canUploadPhotos(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
         description: validatedData.description,
         slug,
         parentId: validatedData.parentId,
-        createdBy: user.id,
+        createdBy: authResult.user.id,
         isPublic: validatedData.isPublic,
       },
       include: {

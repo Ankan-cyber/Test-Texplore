@@ -1,237 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canReadGallery, canUploadPhotos } from '@/lib/permissions';
-import { prisma } from '@/lib/db';
+import {
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
+import { galleryImagesListQuerySchema, parseQuery } from '@/lib/api-schemas';
+import {
+  createGalleryImage,
+  createImageSchema,
+  listGalleryImages,
+} from '@/lib/services/gallery-images-service';
+import { ServiceError } from '@/lib/services/service-error';
 import { z } from 'zod';
 
-const createImageSchema = z.object({
-  originalName: z.string().min(1),
-  fileName: z.string().min(1),
-  fileUrl: z.string().url(),
-  thumbnailUrl: z.string().url().optional(),
-  fileSize: z.number().positive(),
-  mimeType: z.string().min(1),
-  cloudinaryId: z.string().min(1),
-  cloudinaryData: z.any().optional(),
-  title: z.string().min(1).max(200).optional(),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  altText: z.string().optional(),
-  folderId: z.string().optional(),
-  eventId: z.string().optional(),
-});
+function handleApiError(error: unknown, fallbackMessage: string) {
+  if (error instanceof z.ZodError) {
+    return NextResponse.json(
+      { error: 'Validation error', details: error.format() },
+      { status: 400 },
+    );
+  }
 
-const updateImageSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  altText: z.string().optional(),
-  folderId: z.string().optional(),
-  eventId: z.string().optional(),
-});
+  if (error instanceof ServiceError) {
+    return NextResponse.json(
+      { error: error.message, ...(error.details ? { details: error.details } : {}) },
+      { status: error.statusCode },
+    );
+  }
 
-// GET /api/gallery/images - Get images with filtering and search
+  console.error(fallbackMessage, error);
+  return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canReadGallery(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:read',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
-
-    // Pagination
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const skip = (page - 1) * limit;
-
-    // Filtering
-    const folderId = searchParams.get('folderId');
-    const eventId = searchParams.get('eventId');
-    const uploaderId = searchParams.get('uploaderId');
-    const status = searchParams.get('status'); // Frontend sends 'all', 'approved', 'pending'
-    const isApproved = searchParams.get('isApproved'); // Direct boolean parameter
-    const search = searchParams.get('search');
-    const tags = searchParams.get('tags')?.split(',').filter(Boolean);
-
-    // Sorting
-    const sortBy = searchParams.get('sortBy') || 'createdAt';
-    const sortOrder = searchParams.get('sortOrder') || 'desc';
-
-    // Build where clause
-    const where: any = {};
-
-    if (folderId) {
-      where.folderId = folderId;
-    }
-
-    if (eventId) {
-      where.eventId = eventId;
-    }
-
-    if (uploaderId) {
-      where.uploadedBy = uploaderId;
-    }
-
-    // Handle status filter (frontend sends 'all', 'approved', 'pending')
-    if (status && status !== 'all') {
-      if (status === 'approved') {
-        where.isApproved = true;
-      } else if (status === 'pending') {
-        where.isApproved = false;
-      }
-    } else if (isApproved !== null) {
-      // Handle direct isApproved parameter
-      where.isApproved = isApproved === 'true';
-    }
-
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { originalName: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    if (tags && tags.length > 0) {
-      where.tags = {
-        hasSome: tags,
-      };
-    }
-
-    // Get images with related data
-    const [images, total] = await Promise.all([
-      prisma.galleryImage.findMany({
-        where,
-        include: {
-          uploader: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          folder: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-            },
-          },
-          event: {
-            select: {
-              id: true,
-              title: true,
-            },
-          },
-        },
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
-        skip,
-        take: limit,
-      }),
-      prisma.galleryImage.count({ where }),
-    ]);
+    const query = parseQuery(
+      galleryImagesListQuerySchema,
+      new URL(request.url).searchParams,
+    );
+    const result = await listGalleryImages(query);
 
     return NextResponse.json({
       success: true,
-      images,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
+      ...result,
     });
   } catch (error) {
-    console.error('Error fetching images:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch images' },
-      { status: 500 },
-    );
+    return handleApiError(error, 'Error fetching images:');
   }
 }
 
-// POST /api/gallery/images - Create image record (for manual entry)
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canUploadPhotos(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     const body = await request.json();
     const validatedData = createImageSchema.parse(body);
-
-    // Validate folder if provided
-    if (validatedData.folderId) {
-      const folder = await prisma.galleryFolder.findUnique({
-        where: { id: validatedData.folderId },
-      });
-
-      if (!folder) {
-        return NextResponse.json(
-          { error: 'Folder not found' },
-          { status: 404 },
-        );
-      }
-    }
-
-    // Validate event if provided
-    if (validatedData.eventId) {
-      const event = await prisma.event.findUnique({
-        where: { id: validatedData.eventId },
-      });
-
-      if (!event) {
-        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-      }
-    }
-
-    // Create image record
-    const image = await prisma.galleryImage.create({
-      data: {
-        ...validatedData,
-        uploadedBy: user.id,
-      },
-      include: {
-        uploader: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        folder: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        event: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-      },
-    });
+    const image = await createGalleryImage(authResult.user, validatedData);
 
     return NextResponse.json(
       {
@@ -241,17 +88,6 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid input data', details: error.issues },
-        { status: 400 },
-      );
-    }
-
-    console.error('Error creating image:', error);
-    return NextResponse.json(
-      { error: 'Failed to create image' },
-      { status: 500 },
-    );
+    return handleApiError(error, 'Error creating image:');
   }
 }

@@ -1,74 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canReadGallery, canUploadPhotos } from '@/lib/permissions';
-import { prisma } from '@/lib/db';
-import { deleteImage } from '@/lib/cloudinary';
+import {
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
+import {
+  deleteGalleryImageById,
+  getGalleryImageById,
+  updateGalleryImage,
+  updateImageSchema,
+} from '@/lib/services/gallery-images-service';
+import { buildRequestMeta, writeAuditLog } from '@/lib/audit-log';
+import { errorResponse, logApiError } from '@/lib/error-envelope';
+import { ServiceError } from '@/lib/services/service-error';
 import { z } from 'zod';
 
-const updateImageSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  altText: z.string().optional(),
-  folderId: z.string().optional(),
-  eventId: z.string().optional(),
-});
+function handleApiError(error: unknown, fallbackMessage: string) {
+  if (error instanceof z.ZodError) {
+    return errorResponse(400, 'Validation error', 'VALIDATION_ERROR', error.format());
+  }
+
+  if (error instanceof ServiceError) {
+    const code =
+      error.statusCode === 403
+        ? 'ACCESS_DENIED'
+        : error.statusCode === 404
+          ? 'NOT_FOUND'
+          : error.statusCode === 409
+            ? 'CONFLICT'
+            : 'INTERNAL_ERROR';
+    return errorResponse(error.statusCode, error.message, code, error.details);
+  }
+
+  logApiError(fallbackMessage, error);
+  return errorResponse(500, 'Failed to process request', 'INTERNAL_ERROR');
+}
 
 // GET /api/gallery/images/[id] - Get a single image by ID (public access)
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: imageId } = await params;
-
-    // No authentication check - public access for student portal
-    const image = await prisma.galleryImage.findUnique({
-      where: {
-        id: imageId,
-      },
-      include: {
-        uploader: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        folder: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        event: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            startDate: true,
-            endDate: true,
-            location: true,
-          },
-        },
-      },
-    });
-
-    if (!image) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
-    }
+    const image = await getGalleryImageById(imageId);
 
     return NextResponse.json({
       success: true,
       image,
     });
   } catch (error) {
-    console.error('Error fetching image:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch image' },
-      { status: 500 },
-    );
+    return handleApiError(error, 'Error fetching image:');
   }
 }
 
@@ -78,109 +59,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canUploadPhotos(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const validatedData = updateImageSchema.parse(body);
-
-    // Check if image exists
-    const existingImage = await prisma.galleryImage.findUnique({
-      where: { id },
-    });
-
-    if (!existingImage) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
-    }
-
-    // Check if user is the uploader or has admin permissions
-    if (existingImage.uploadedBy !== user.id && user.role !== 'admin') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    // Validate folder if provided
-    if (validatedData.folderId) {
-      const folder = await prisma.galleryFolder.findUnique({
-        where: { id: validatedData.folderId },
-      });
-
-      if (!folder) {
-        return NextResponse.json(
-          { error: 'Folder not found' },
-          { status: 404 },
-        );
-      }
-    }
-
-    // Validate event if provided
-    if (validatedData.eventId) {
-      const event = await prisma.event.findUnique({
-        where: { id: validatedData.eventId },
-      });
-
-      if (!event) {
-        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-      }
-    }
-
-    // Update image
-    const updatedImage = await prisma.galleryImage.update({
-      where: { id },
-      data: {
-        ...validatedData,
-        updatedAt: new Date(),
-      },
-      include: {
-        uploader: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        folder: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        event: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-      },
-    });
+    const image = await updateGalleryImage(id, authResult.user, validatedData);
 
     return NextResponse.json({
       success: true,
-      data: updatedImage,
+      data: image,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid input data', details: error.issues },
-        { status: 400 },
-      );
-    }
-
-    console.error('Error updating image:', error);
-    return NextResponse.json(
-      { error: 'Failed to update image' },
-      { status: 500 },
-    );
+    return handleApiError(error, 'Error updating image:');
   }
 }
 
@@ -190,44 +92,31 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
+    }
+
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
-    }
+    const requestMeta = buildRequestMeta(request, authResult.user);
+    await deleteGalleryImageById(id, authResult.user);
 
-    if (!canUploadPhotos(user.permissions)) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    // Check if image exists
-    const image = await prisma.galleryImage.findUnique({
-      where: { id },
-    });
-
-    if (!image) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
-    }
-
-    // Check if user is the uploader or has admin permissions
-    if (image.uploadedBy !== user.id && user.role !== 'admin') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    // Delete from Cloudinary first
-    try {
-      await deleteImage(image.cloudinaryId);
-    } catch (cloudinaryError) {
-      console.error('Error deleting from Cloudinary:', cloudinaryError);
-      // Continue with database deletion even if Cloudinary fails
-    }
-
-    // Delete from database
-    await prisma.galleryImage.delete({
-      where: { id },
+    await writeAuditLog({
+      action: 'GALLERY_IMAGE_DELETED',
+      actorId: authResult.user.id,
+      actorRole: authResult.user.role,
+      resourceType: 'gallery',
+      resourceId: id,
+      success: true,
+      requestMeta,
     });
 
     return NextResponse.json({
@@ -235,10 +124,6 @@ export async function DELETE(
       message: 'Image deleted successfully',
     });
   } catch (error) {
-    console.error('Error deleting image:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete image' },
-      { status: 500 },
-    );
+    return handleApiError(error, 'Error deleting image:');
   }
 }

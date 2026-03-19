@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canUploadPhotos } from '@/lib/permissions';
+import { randomUUID } from 'crypto';
+import { requireAuthenticatedUser, requireUserPermission } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import {
   uploadImage,
   getThumbnailUrl,
-  createFolderPath,
 } from '@/lib/cloudinary';
+import {
+  GalleryFolderNotFoundError,
+  getCloudinaryFolderPath,
+} from '@/lib/gallery-folders';
 
 // POST /api/gallery/upload - Upload images using FormData
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canUploadPhotos(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -42,24 +46,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    // Check if folder exists if folderId is provided
-    let folderPath = 'texplore-gallery';
-    if (folderId) {
-      const folder = await prisma.galleryFolder.findUnique({
-        where: { id: folderId },
-      });
-
-      if (!folder) {
-        return NextResponse.json(
-          { error: 'Folder not found' },
-          { status: 404 },
-        );
-      }
-
-      // Build folder path for Cloudinary
-      const folderHierarchy = await getFolderHierarchy(folder.id);
-      folderPath = createFolderPath(folderHierarchy.join('/'));
-    }
+    const folderPath = await getCloudinaryFolderPath(folderId);
 
     const uploadedImages = [];
     let uploadedCount = 0;
@@ -87,10 +74,8 @@ export async function POST(request: NextRequest) {
         const dataUrl = `data:${file.type};base64,${base64}`;
 
         // Generate unique filename
-        const timestamp = Date.now();
         const fileExtension = file.name.split('.').pop();
-        const uniqueFileName = `${timestamp}_${Math.random().toString(36).substring(2)}.${fileExtension}`;
-        const publicId = `${folderPath}/${uniqueFileName}`;
+        const uniqueFileName = `${Date.now()}_${randomUUID()}.${fileExtension}`;
 
         // Upload to Cloudinary
         const uploadResult = await uploadImage(dataUrl, {
@@ -114,7 +99,7 @@ export async function POST(request: NextRequest) {
             title: file.name,
             cloudinaryId: uploadResult.public_id,
             cloudinaryData: JSON.parse(JSON.stringify(uploadResult)),
-            uploadedBy: user.id,
+            uploadedBy: authResult.user.id,
           },
           include: {
             uploader: {
@@ -151,30 +136,14 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof GalleryFolderNotFoundError) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    }
+
     console.error('Error uploading images:', error);
     return NextResponse.json(
       { error: 'Failed to upload images' },
       { status: 500 },
     );
   }
-}
-
-// Helper function to get folder hierarchy
-async function getFolderHierarchy(folderId: string): Promise<string[]> {
-  const hierarchy: string[] = [];
-  let currentFolderId = folderId;
-
-  while (currentFolderId) {
-    const folder = await prisma.galleryFolder.findUnique({
-      where: { id: currentFolderId },
-      select: { name: true, parentId: true },
-    });
-
-    if (!folder) break;
-
-    hierarchy.unshift(folder.name);
-    currentFolderId = folder.parentId || '';
-  }
-
-  return hierarchy;
 }

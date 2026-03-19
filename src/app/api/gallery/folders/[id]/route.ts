@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canUploadPhotos, canReadGallery } from '@/lib/permissions';
+import { requireAuthenticatedUser, requireUserPermission } from '@/lib/api-guards';
+import { buildRequestMeta, writeAuditLog } from '@/lib/audit-log';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 
@@ -108,15 +108,16 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canUploadPhotos(user.permissions)) {
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -133,7 +134,10 @@ export async function PUT(
     }
 
     // Check if user is the creator or has admin permissions
-    if (existingFolder.createdBy !== user.id && user.role !== 'admin') {
+    if (
+      existingFolder.createdBy !== authResult.user.id &&
+      authResult.user.role !== 'admin'
+    ) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -212,16 +216,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
+    const requestMeta = buildRequestMeta(request, authResult.user);
 
-    if (!user.permissions.includes('gallery:delete')) {
-      return NextResponse.json({ error: 'Access denied: gallery:delete permission required' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:delete',
+    );
+    if (permissionResponse) {
+      return NextResponse.json(
+        { error: 'Access denied: gallery:delete permission required' },
+        { status: 403 },
+      );
     }
 
     // Check if folder exists
@@ -242,7 +251,10 @@ export async function DELETE(
     }
 
     // Check if user is the creator or has admin permissions
-    if (folder.createdBy !== user.id && user.role !== 'admin') {
+    if (
+      folder.createdBy !== authResult.user.id &&
+      authResult.user.role !== 'admin'
+    ) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -275,6 +287,19 @@ export async function DELETE(
     // Delete the folder
     await prisma.galleryFolder.delete({
       where: { id },
+    });
+
+    await writeAuditLog({
+      action: 'GALLERY_FOLDER_DELETED',
+      actorId: authResult.user.id,
+      actorRole: authResult.user.role,
+      resourceType: 'gallery',
+      resourceId: id,
+      success: true,
+      requestMeta,
+      metadata: {
+        deletedImageCount: folder._count.images,
+      },
     });
 
     return NextResponse.json({

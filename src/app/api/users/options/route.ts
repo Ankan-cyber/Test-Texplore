@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
-import { canManageUsers } from '@/lib/permissions';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+} from '@/lib/api-guards';
 import { Role } from '@prisma/client';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canManageUsers(user.permissions)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'user:create',
+      'user:update',
+      'user:delete',
+      'user:approve',
+    ]);
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     // Fetch departments

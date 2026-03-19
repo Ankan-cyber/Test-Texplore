@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canManageGallery } from '@/lib/permissions';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+} from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 
@@ -14,9 +16,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const resolvedParams = await params;
-  console.log('POST params:', resolvedParams);
-  return handleApproval(request, resolvedParams);
+  return handleApproval(request, await params);
 }
 
 // PATCH /api/gallery/images/[id]/approve - Approve or reject image
@@ -24,23 +24,23 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const resolvedParams = await params;
-  console.log('PATCH params:', resolvedParams);
-  return handleApproval(request, resolvedParams);
+  return handleApproval(request, await params);
 }
 
 // Helper function to handle approval logic
 async function handleApproval(request: NextRequest, params: { id: string }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canManageGallery(user.permissions)) {
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'gallery:upload',
+      'gallery:moderate',
+      'gallery:delete',
+    ]);
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -66,7 +66,7 @@ async function handleApproval(request: NextRequest, params: { id: string }) {
       where: { id: params.id },
       data: {
         isApproved: validatedData.approved,
-        approvedBy: validatedData.approved ? user.id : null,
+        approvedBy: validatedData.approved ? authResult.user.id : null,
         approvedAt: validatedData.approved ? new Date() : null,
       },
       include: {

@@ -130,11 +130,14 @@ export default function GalleryManager({
 
     try {
       setIsLoading(true);
-      const params = new URLSearchParams({
-        folderId: currentFolder,
-        status: filterStatus,
-        search: searchQuery,
-      });
+      const params = new URLSearchParams();
+      params.set('folderId', currentFolder);
+      params.set('status', filterStatus);
+
+      const trimmedSearch = searchQuery.trim();
+      if (trimmedSearch.length > 0) {
+        params.set('search', trimmedSearch);
+      }
 
       const response = await fetch(`/api/gallery/images?${params}`);
       if (response.ok) {
@@ -142,7 +145,11 @@ export default function GalleryManager({
         console.log('Images response:', data);
         setImages(data.images || []);
       } else {
-        console.error('Failed to fetch images:', response.status);
+        const errorData = await response.json().catch(() => null);
+        console.error('Failed to fetch images:', response.status, errorData);
+        if (errorData?.error) {
+          toast.error(errorData.error);
+        }
         setImages([]);
       }
     } catch (error) {
@@ -376,8 +383,12 @@ export default function GalleryManager({
       }
 
       const preview = await createFilePreviewLocal(file);
+      const uploadId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}_${file.name}`;
       const uploadFile: UploadFile = {
-        id: `${Date.now()}_${Math.random().toString(36).substring(2)}`,
+        id: uploadId,
         file,
         preview,
         progress: 0,

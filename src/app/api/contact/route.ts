@@ -1,20 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canReadContactMessages, canManageContact } from '@/lib/permissions';
+import {
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import { sendAdminNotification } from '@/lib/email';
+import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
+import {
+  createIdempotencyFingerprint,
+  getIdempotencyKey,
+  getIdempotencyReplay,
+  persistIdempotencyResponse,
+  releaseIdempotencyKey,
+  reserveIdempotencyKey,
+} from '@/lib/idempotency';
 
 // GET - Fetch all contact submissions (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canReadContactMessages(user.permissions)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'contact:read',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const { searchParams } = new URL(request.url);
@@ -69,9 +83,40 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new contact submission (public)
 export async function POST(request: NextRequest) {
+  const idempotencyKey = getIdempotencyKey(request);
+  const idempotencyScope = 'contact-submit';
+  let fingerprint: string | null = null;
+
   try {
+    // Apply rate limiting per IP address
+    const clientIp = getClientIp(request.headers);
+    const rateLimitResponse = checkRateLimit(clientIp, RATE_LIMIT_CONFIGS.CONTACT_SUBMIT);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const body = await request.json();
     const { name, email, message, phone } = body;
+
+    if (idempotencyKey) {
+      fingerprint = createIdempotencyFingerprint({
+        name,
+        email: typeof email === 'string' ? email.toLowerCase().trim() : email,
+        message,
+        phone,
+      });
+
+      const replayResponse = getIdempotencyReplay(
+        idempotencyScope,
+        idempotencyKey,
+        fingerprint,
+      );
+      if (replayResponse) {
+        return replayResponse;
+      }
+
+      reserveIdempotencyKey(idempotencyScope, idempotencyKey, fingerprint);
+    }
 
     // Validate required fields
     if (!name || !email || !message) {
@@ -126,11 +171,25 @@ export async function POST(request: NextRequest) {
       console.error('Failed to send admin notification:', emailError);
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: 'Contact form submitted successfully',
       submission,
     });
+
+    if (idempotencyKey && fingerprint) {
+      return await persistIdempotencyResponse(
+        idempotencyScope,
+        idempotencyKey,
+        response,
+      );
+    }
+
+    return response;
   } catch (error) {
+    if (idempotencyKey) {
+      releaseIdempotencyKey(idempotencyScope, idempotencyKey);
+    }
+
     console.error('Error creating contact submission:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

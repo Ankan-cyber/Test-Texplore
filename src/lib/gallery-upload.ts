@@ -45,8 +45,12 @@ export async function uploadGalleryImage(
 ): Promise<GalleryImageData> {
   // Generate unique filename
   const timestamp = Date.now();
+  const randomSuffix =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${timestamp}`;
   const fileExtension = file.name.split('.').pop();
-  const uniqueFileName = `${timestamp}_${Math.random().toString(36).substring(2)}.${fileExtension}`;
+  const uniqueFileName = `${timestamp}_${randomSuffix}.${fileExtension}`;
 
   // Step 1: Get upload signature from server
   const signatureResponse = await fetch('/api/gallery/upload-signature', {
@@ -145,7 +149,8 @@ export async function uploadGalleryImage(
     throw new Error(error.error || 'Failed to save image to database');
   }
 
-  const imageData: GalleryImageData = await saveResponse.json();
+  const payload = await saveResponse.json();
+  const imageData: GalleryImageData = payload?.data || payload;
   return imageData;
 }
 

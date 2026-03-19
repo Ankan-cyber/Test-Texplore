@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import {
+  getOptionalAuthenticatedUser,
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 
 // GET /api/departments - Get all departments
 async function handleGet() {
   try {
-    // Get current user for permission checking
-    const user = await getCurrentUser();
+    // Optional auth behavior: authenticated users with department:read can see all,
+    // everyone else receives only active departments.
+    const user = await getOptionalAuthenticatedUser();
 
     // Check if user has department:read permission or is admin
     const canReadDepartments =
@@ -36,24 +41,17 @@ async function handleGet() {
 // POST /api/departments - Create new department
 async function handlePost(request: NextRequest) {
   try {
-    // Check authentication
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    // Check permissions
-    if (
-      !user.permissions.includes('department:create') &&
-      user.role !== 'admin'
-    ) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 },
-      );
+    const permissionResponse =
+      authResult.user.role === 'admin'
+        ? null
+        : requireUserPermission(authResult.user, 'department:create');
+    if (permissionResponse) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await request.json();

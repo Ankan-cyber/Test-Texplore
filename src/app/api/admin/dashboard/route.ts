@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, canAccessAdmin } from '@/lib/auth';
+import { requireAuthenticatedUser, requireUserPermission } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    // Check if user can access admin dashboard
-    if (!canAccessAdmin(user)) {
+    const permissionResponse =
+      authResult.user.role === 'admin'
+        ? null
+        : requireUserPermission(authResult.user, 'admin:dashboard');
+    if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 

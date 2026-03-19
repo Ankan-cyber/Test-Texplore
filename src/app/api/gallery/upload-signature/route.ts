@@ -1,48 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canUploadPhotos } from '@/lib/permissions';
+import { requireAuthenticatedUser, requireUserPermission } from '@/lib/api-guards';
 import { generateUploadSignature } from '@/lib/cloudinary';
-import { prisma } from '@/lib/db';
-import { createFolderPath } from '@/lib/cloudinary';
+import {
+  GalleryFolderNotFoundError,
+  getCloudinaryFolderPath,
+} from '@/lib/gallery-folders';
+import { z } from 'zod';
+
+const signatureRequestSchema = z.object({
+  folderId: z.string().optional(),
+  fileName: z.string().min(1).optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canUploadPhotos(user.permissions)) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 },
-      );
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'gallery:upload',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const body = await request.json();
-    const { folderId, fileName } = body;
-
-    // Determine folder path
-    let folderPath = 'texplore-gallery';
-    if (folderId) {
-      const folder = await prisma.galleryFolder.findUnique({
-        where: { id: folderId },
-      });
-
-      if (!folder) {
-        return NextResponse.json(
-          { error: 'Folder not found' },
-          { status: 404 },
-        );
-      }
-
-      // Build folder path for Cloudinary
-      const folderHierarchy = await getFolderHierarchy(folder.id);
-      folderPath = createFolderPath(folderHierarchy.join('/'));
-    }
+    const { folderId, fileName } = signatureRequestSchema.parse(body);
+    const folderPath = await getCloudinaryFolderPath(folderId);
 
     const signature = generateUploadSignature({
       folder: folderPath,
@@ -51,30 +38,20 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(signature);
   } catch (error) {
+    if (error instanceof GalleryFolderNotFoundError) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    }
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid input data', details: error.issues },
+        { status: 400 },
+      );
+    }
+
     console.error('Error generating upload signature:', error);
     return NextResponse.json(
       { error: 'Failed to generate upload signature' },
       { status: 500 },
     );
   }
-}
-
-// Helper function to get folder hierarchy
-async function getFolderHierarchy(folderId: string): Promise<string[]> {
-  const hierarchy: string[] = [];
-  let currentFolderId = folderId;
-
-  while (currentFolderId) {
-    const folder = await prisma.galleryFolder.findUnique({
-      where: { id: currentFolderId },
-      select: { name: true, parentId: true },
-    });
-
-    if (!folder) break;
-
-    hierarchy.unshift(folder.name);
-    currentFolderId = folder.parentId || '';
-  }
-
-  return hierarchy;
 }

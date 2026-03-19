@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { canManageContact } from '@/lib/permissions';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+} from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import { sendReplyEmail } from '@/lib/email';
 
@@ -10,14 +12,18 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canManageContact(user.permissions)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'contact:read',
+      'contact:update',
+      'contact:delete',
+    ]);
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const { id } = await params;
@@ -49,7 +55,7 @@ export async function POST(
       data: {
         replyText: replyText.trim(),
         hasReply: true,
-        repliedBy: user.id,
+        repliedBy: authResult.user.id,
         repliedAt: new Date(),
         status: status || 'RESOLVED',
       },
@@ -63,7 +69,7 @@ export async function POST(
         subject: `Re: ${submission.name}`,
         originalMessage: submission.message,
         replyText: replyText.trim(),
-        repliedBy: user.name || user.email,
+        repliedBy: authResult.user.name || authResult.user.email,
       });
     } catch (emailError) {
       console.error('Failed to send email reply:', emailError);

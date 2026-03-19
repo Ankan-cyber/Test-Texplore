@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
-import { canManageUsers } from '@/lib/permissions';
+import { sanitizeUserResponse } from '@/lib/user-response';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+} from '@/lib/api-guards';
+import { buildRequestMeta, writeAuditLog } from '@/lib/audit-log';
 import { z } from 'zod';
 
 const updateStatusSchema = z.object({
@@ -13,18 +17,25 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canManageUsers(user.permissions)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'user:create',
+      'user:update',
+      'user:delete',
+      'user:approve',
+    ]);
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const { id } = await params;
     const body = await request.json();
     const validatedData = updateStatusSchema.parse(body);
+    const requestMeta = buildRequestMeta(request, authResult.user);
 
     // Update user status
     const updatedUser = await prisma.user.update({
@@ -36,8 +47,21 @@ export async function PATCH(
       },
     });
 
+    await writeAuditLog({
+      action: 'USER_STATUS_UPDATED',
+      actorId: authResult.user.id,
+      actorRole: authResult.user.role,
+      resourceType: 'user',
+      resourceId: id,
+      success: true,
+      metadata: {
+        status: validatedData.status,
+      },
+      requestMeta,
+    });
+
     return NextResponse.json({
-      user: updatedUser,
+      user: sanitizeUserResponse(updatedUser),
       message: 'User status updated successfully',
     });
   } catch (error) {

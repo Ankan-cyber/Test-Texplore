@@ -241,6 +241,14 @@ EMAIL_FROM=
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Seed (optional)
+SEED_DEMO_DATA=false
+SEED_ADMIN_PASSWORD=
+SEED_PRESIDENT_PASSWORD=
+SEED_VP_PASSWORD=
+SEED_COORDINATOR_PASSWORD=
+SEED_MEMBER_PASSWORD=
 ```
 
 ### Installation & Run
@@ -255,10 +263,13 @@ npm run db:generate
 # 3. Push schema to database
 npm run db:push
 
-# 4. (Optional) Seed initial data
+# 4. (Optional) Seed baseline data only
 npm run db:seed
 
-# 5. Start development server
+# 5. (Optional) Seed baseline + demo content
+npm run db:seed:demo
+
+# 6. Start development server
 npm run dev
 ```
 
@@ -269,13 +280,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | Script | Description |
 |---|---|
 | `npm run dev` | Start dev server with Turbopack |
-| `npm run build` | Build for production (auto-runs `db:generate` & `db:push`) |
+| `npm run build` | Build for production (auto-runs `db:generate`) |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
 | `npm run format` | Format code with Prettier |
 | `npm run db:generate` | Regenerate Prisma client after schema changes |
 | `npm run db:push` | Push schema changes to the database |
-| `npm run db:seed` | Seed the database with initial data |
+| `npm run db:seed` | Seed baseline data (departments + admin user) |
+| `npm run db:seed:demo` | Seed baseline data plus demo users/events/gallery/content |
 
 ---
 
@@ -286,6 +298,8 @@ The easiest way to deploy is [Vercel](https://vercel.com):
 1. Push the repository to GitHub.
 2. Import the project on Vercel.
 3. Set all environment variables in the Vercel dashboard.
-4. Vercel automatically runs `npm run build` (which includes `db:generate` and `db:push`).
+4. Vercel automatically runs `npm run build` (which includes `db:generate`).
+
+Run `npm run db:push` and optional seed commands as explicit deployment/bootstrap steps.
 
 For any other Node.js hosting (Railway, Render, VPS), run `npm run build && npm run start`.

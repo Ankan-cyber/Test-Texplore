@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import {
+  createIdempotencyFingerprint,
+  getIdempotencyKey,
+  getIdempotencyReplay,
+  persistIdempotencyResponse,
+  releaseIdempotencyKey,
+  reserveIdempotencyKey,
+} from '@/lib/idempotency';
 import { z } from 'zod';
 
 // Validation schema for public event registration
@@ -38,6 +46,10 @@ async function handlePost(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const idempotencyKey = getIdempotencyKey(request);
+  const idempotencyScope = 'event-registration';
+  let fingerprint: string | null = null;
+
   try {
     const { id: eventId } = await params;
     const body = await request.json();
@@ -46,10 +58,9 @@ async function handlePost(
     const event = await prisma.event.findUnique({
       where: { id: eventId },
       include: {
-        registrations: {
+        _count: {
           select: {
-            id: true,
-            emailId: true,
+            registrations: true,
           },
         },
       },
@@ -85,16 +96,28 @@ async function handlePost(
     // Validate public registration data
     const validatedData = publicRegistrationSchema.parse(body);
 
-    // Debug: Log the registration attempt
-    console.log('Registration attempt:', {
-      eventId,
-      emailId: validatedData.emailId,
-      existingRegistrations: event.registrations.length,
-    });
+    if (idempotencyKey) {
+      fingerprint = createIdempotencyFingerprint({
+        eventId,
+        ...validatedData,
+        emailId: validatedData.emailId.toLowerCase().trim(),
+      });
+
+      const replayResponse = getIdempotencyReplay(
+        idempotencyScope,
+        idempotencyKey,
+        fingerprint,
+      );
+      if (replayResponse) {
+        return replayResponse;
+      }
+
+      reserveIdempotencyKey(idempotencyScope, idempotencyKey, fingerprint);
+    }
 
     // Check capacity
     if (event.maxCapacity) {
-      const totalRegistrations = event.registrations.length;
+      const totalRegistrations = event._count.registrations;
 
       if (totalRegistrations >= event.maxCapacity) {
         return NextResponse.json(
@@ -104,40 +127,23 @@ async function handlePost(
       }
     }
 
-    // Debug: Log the registration attempt
-    console.log('Registration attempt:', {
-      eventId,
-      emailId: validatedData.emailId,
-      existingRegistrations: event.registrations.length,
-    });
-
     // Check for existing registration with the same email (normalized)
     const normalizedEmail = validatedData.emailId.toLowerCase().trim();
 
-    // Get all registrations for this event and check for duplicates
-    const allRegistrations = await prisma.eventRegistration.findMany({
+    const existingRegistration = await prisma.eventRegistration.findFirst({
       where: {
         eventId,
         emailId: {
-          not: null,
+          equals: normalizedEmail,
+          mode: 'insensitive',
         },
       },
       select: {
-        emailId: true,
+        id: true,
       },
     });
 
-    // Check if any existing registration has the same email (case-insensitive)
-    const hasDuplicate = allRegistrations.some(
-      (reg) =>
-        reg.emailId && reg.emailId.toLowerCase().trim() === normalizedEmail,
-    );
-
-    if (hasDuplicate) {
-      console.error(
-        'Found existing registration with same email:',
-        normalizedEmail,
-      );
+    if (existingRegistration) {
       return NextResponse.json(
         { error: 'This email is already registered for this event' },
         { status: 400 },
@@ -172,14 +178,28 @@ async function handlePost(
       },
     });
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         registration,
         message: 'Registration successful',
       },
       { status: 201 },
     );
+
+    if (idempotencyKey && fingerprint) {
+      return await persistIdempotencyResponse(
+        idempotencyScope,
+        idempotencyKey,
+        response,
+      );
+    }
+
+    return response;
   } catch (error) {
+    if (idempotencyKey) {
+      releaseIdempotencyKey(idempotencyScope, idempotencyKey);
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Validation error', details: error.format() },
@@ -202,16 +222,6 @@ async function handlePost(
     }
 
     console.error('Error registering for event:', error);
-
-    // Log more details about the error
-    if (error && typeof error === 'object') {
-      console.error('Error details:', {
-        name: (error as any).name,
-        code: (error as any).code,
-        message: (error as any).message,
-        meta: (error as any).meta,
-      });
-    }
 
     return NextResponse.json(
       { error: 'Failed to register for event' },

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, canManageEvents } from '@/lib/auth';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+} from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 
 // GET /api/events/[id]/registrations - Get all registrations for an event
@@ -15,26 +18,23 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
     }
 
-    // Get current user
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 },
-      );
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
     // Check if user can manage events
-    if (!canManageEvents(user)) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 },
-      );
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'event:create',
+      'event:update',
+      'event:delete',
+      'event:approve',
+    ]);
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     // Get the event
-    console.log('Fetching event with ID:', eventId);
     const event = await prisma.event.findUnique({
       where: { id: eventId },
       select: {
@@ -48,10 +48,7 @@ export async function GET(
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
 
-    console.log('Event found:', event.title);
-
     // Get all registrations for the event
-    console.log('Fetching registrations for event:', eventId);
     const registrations = await prisma.eventRegistration.findMany({
       where: { eventId },
       select: {
@@ -71,8 +68,6 @@ export async function GET(
       orderBy: { registrationDate: 'desc' },
     });
 
-    console.log('Found registrations:', registrations.length);
-
     return NextResponse.json({
       event,
       registrations,
@@ -81,17 +76,8 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching event registrations:', error);
 
-    // Log more details for debugging
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
-
     return NextResponse.json(
-      {
-        error: 'Failed to fetch registrations',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Failed to fetch registrations' },
       { status: 500 },
     );
   }

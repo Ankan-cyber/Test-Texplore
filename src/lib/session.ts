@@ -1,4 +1,8 @@
 import { cookies } from 'next/headers';
+import {
+  decodeSessionToken,
+  encodeSessionToken,
+} from './session-token';
 
 // Session configuration
 export interface SessionConfig {
@@ -44,8 +48,10 @@ export async function createSession(
     expiresAt,
   };
 
+  const sessionToken = await encodeSessionToken(sessionData);
+
   const cookieStore = await cookies();
-  cookieStore.set(sessionConfig.cookieName, JSON.stringify(sessionData), {
+  cookieStore.set(sessionConfig.cookieName, sessionToken, {
     httpOnly: sessionConfig.httpOnly,
     secure: sessionConfig.secure,
     sameSite: sessionConfig.sameSite,
@@ -69,7 +75,12 @@ export async function getSession(
   }
 
   try {
-    const sessionData: SessionData = JSON.parse(sessionCookie.value);
+    const sessionData = await decodeSessionToken(sessionCookie.value);
+
+    if (!sessionData) {
+      await destroySession(config);
+      return null;
+    }
 
     // Check if session has expired
     if (Date.now() > sessionData.expiresAt) {
@@ -107,18 +118,16 @@ export async function updateSessionActivity(
     expiresAt: newExpiresAt,
   };
 
+  const sessionToken = await encodeSessionToken(updatedSessionData);
+
   const cookieStore = await cookies();
-  cookieStore.set(
-    sessionConfig.cookieName,
-    JSON.stringify(updatedSessionData),
-    {
-      httpOnly: sessionConfig.httpOnly,
-      secure: sessionConfig.secure,
-      sameSite: sessionConfig.sameSite,
-      maxAge: sessionConfig.timeoutMinutes * 60, // Convert to seconds
-      path: '/',
-    },
-  );
+  cookieStore.set(sessionConfig.cookieName, sessionToken, {
+    httpOnly: sessionConfig.httpOnly,
+    secure: sessionConfig.secure,
+    sameSite: sessionConfig.sameSite,
+    maxAge: sessionConfig.timeoutMinutes * 60, // Convert to seconds
+    path: '/',
+  });
 }
 
 /**

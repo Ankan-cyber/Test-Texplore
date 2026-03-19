@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db';
-import { getCurrentUser, canManageUsers } from '@/lib/auth';
-import { getAssignableRoles, getAvailablePermissions, canViewUsers } from '@/lib/permissions';
+import { getAssignableRoles, getAvailablePermissions } from '@/lib/permissions';
 import { hashPassword } from '@/lib/auth';
+import { sanitizeUserResponse, sanitizeUsersResponse } from '@/lib/user-response';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+  requireUserPermission,
+} from '@/lib/api-guards';
+import { buildRequestMeta, writeAuditLog } from '@/lib/audit-log';
 import { z } from 'zod';
 import nodemailer from 'nodemailer';
 import { Prisma } from '@prisma/client';
+import { checkRateLimit, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
 
 // Utility function to validate ObjectId format
 function isValidObjectId(id: string): boolean {
@@ -54,13 +62,31 @@ const querySchema = z.object({
 
 // Generate a temporary password
 function generateTemporaryPassword(): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const specials = '!@#$%^&*';
+  const allChars = `${uppercase}${lowercase}${digits}${specials}`;
+
+  const pickRandom = (charset: string) => charset[randomInt(charset.length)];
+
+  const passwordChars = [
+    pickRandom(uppercase),
+    pickRandom(lowercase),
+    pickRandom(digits),
+    pickRandom(specials),
+  ];
+
+  while (passwordChars.length < 12) {
+    passwordChars.push(pickRandom(allChars));
   }
-  return password;
+
+  for (let i = passwordChars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [passwordChars[i], passwordChars[j]] = [passwordChars[j], passwordChars[i]];
+  }
+
+  return passwordChars.join('');
 }
 
 // Send email notification using Nodemailer
@@ -259,13 +285,17 @@ async function sendWelcomeEmail(
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canViewUsers(user.permissions || [])) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const permissionResponse = requireUserPermission(
+      authResult.user,
+      'user:read',
+    );
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const { searchParams } = new URL(request.url);
@@ -319,7 +349,7 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.ceil(totalCount / limit);
 
     return NextResponse.json({
-      users,
+      users: sanitizeUsersResponse(users),
       pagination: {
         page,
         limit,
@@ -340,20 +370,33 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
     }
 
-    if (!canManageUsers(user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Apply rate limiting per authenticated user
+    const rateLimitResponse = checkRateLimit(authResult.user.id, RATE_LIMIT_CONFIGS.USER_CREATION);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'user:create',
+      'user:update',
+      'user:delete',
+      'user:approve',
+    ]);
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const body = await request.json();
     const validatedData = createUserSchema.parse(body);
+    const requestMeta = buildRequestMeta(request, authResult.user);
 
     // Enforce role assignment restrictions
-    const creatorRole = user.role;
+    const creatorRole = authResult.user.role;
     const targetRole:
       | 'member'
       | 'coordinator'
@@ -444,8 +487,22 @@ export async function POST(request: NextRequest) {
       temporaryPassword,
     );
 
+    await writeAuditLog({
+      action: 'USER_CREATED',
+      actorId: authResult.user.id,
+      actorRole: authResult.user.role,
+      resourceType: 'user',
+      resourceId: newUser.id,
+      success: true,
+      metadata: {
+        createdEmail: validatedData.email,
+        createdRole: targetRole,
+      },
+      requestMeta,
+    });
+
     return NextResponse.json({
-      user: newUser,
+      user: sanitizeUserResponse(newUser),
       message:
         'User created successfully. Welcome email sent with temporary password.',
     });

@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { requireAuthenticatedUser } from '@/lib/api-guards';
+import { sanitizeUserResponse } from '@/lib/user-response';
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Return user data without password
-    const { password: _, ...userWithoutPassword } = user;
-
     return NextResponse.json({
-      user: userWithoutPassword,
+      user: sanitizeUserResponse(authResult.user),
     });
   } catch (error) {
     console.error('Auth check error:', error);

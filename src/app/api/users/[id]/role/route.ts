@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
 import { getAssignableRoles } from '@/lib/permissions';
+import { sanitizeUserResponse } from '@/lib/user-response';
+import {
+  requireAnyUserPermission,
+  requireAuthenticatedUser,
+} from '@/lib/api-guards';
+import { buildRequestMeta, writeAuditLog } from '@/lib/audit-log';
 import { z } from 'zod';
 
 const updateRoleSchema = z.object({
@@ -20,17 +25,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authUser = await getCurrentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAuthenticatedUser();
+    if ('response' in authResult) {
+      return authResult.response;
+    }
+
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
+      'user:create',
+      'user:update',
+      'user:delete',
+      'user:approve',
+    ]);
+    if (permissionResponse) {
+      return permissionResponse;
     }
 
     const { id } = await params;
     const body = await request.json();
     const { role: targetRole, permissions } = updateRoleSchema.parse(body);
+    const requestMeta = buildRequestMeta(request, authResult.user);
 
     // Check if current user can assign the target role
-    const allowedRoles = getAssignableRoles(authUser.role);
+    const allowedRoles = getAssignableRoles(authResult.user.role);
     if (!allowedRoles.includes(targetRole)) {
       return NextResponse.json(
         { error: 'You are not allowed to assign this role' },
@@ -49,7 +65,24 @@ export async function PATCH(
       include: { department: true, profile: true },
     });
 
-    return NextResponse.json({ user: updated, message: 'Role updated' });
+    await writeAuditLog({
+      action: 'USER_ROLE_UPDATED',
+      actorId: authResult.user.id,
+      actorRole: authResult.user.role,
+      resourceType: 'user',
+      resourceId: id,
+      success: true,
+      metadata: {
+        assignedRole: targetRole,
+        permissionsCount: permissions?.length ?? null,
+      },
+      requestMeta,
+    });
+
+    return NextResponse.json({
+      user: sanitizeUserResponse(updated),
+      message: 'Role updated',
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

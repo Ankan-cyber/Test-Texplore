@@ -16,11 +16,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: 'Session updated successfully',
-      session: {
-        userId: session.userId,
-        lastActivity: new Date(session.lastActivity).toISOString(),
-        expiresAt: new Date(session.expiresAt).toISOString(),
-      },
+      refreshed: true,
     });
   } catch (error) {
     console.error('Session update error:', error);
