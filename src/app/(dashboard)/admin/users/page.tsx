@@ -72,9 +72,9 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
             User Management
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -83,7 +83,7 @@ export default function UsersPage() {
         </div>
         {canAddUser && (
           <Button
-            className="bg-primary hover:bg-primary/90"
+            className="w-full sm:w-auto bg-primary hover:bg-primary/90"
             onClick={() => setIsAddUserModalOpen(true)}
           >
             <UserPlus className="h-4 w-4 mr-2" />

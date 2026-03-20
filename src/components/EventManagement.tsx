@@ -228,9 +228,9 @@ const EventManagement: React.FC<EventManagementProps> = ({ user }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
             Event Management
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -240,7 +240,7 @@ const EventManagement: React.FC<EventManagementProps> = ({ user }) => {
         {canCreateEvents && (
           <Button
             onClick={handleCreateEvent}
-            className="bg-primary hover:bg-primary/90"
+            className="w-full sm:w-auto bg-primary hover:bg-primary/90"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Event
@@ -254,7 +254,7 @@ const EventManagement: React.FC<EventManagementProps> = ({ user }) => {
           <CardTitle className="text-primary">Filters & Search</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -328,7 +328,7 @@ const EventManagement: React.FC<EventManagementProps> = ({ user }) => {
                   key={event.id}
                   className="border rounded-lg p-4 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="text-lg font-semibold">{event.title}</h3>
@@ -356,7 +356,7 @@ const EventManagement: React.FC<EventManagementProps> = ({ user }) => {
                         {event.description}
                       </p>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-500">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4" />
                           <span>
@@ -424,7 +424,7 @@ const EventManagement: React.FC<EventManagementProps> = ({ user }) => {
                     </div>
 
                     {canManageEvents && (
-                      <div className="flex items-center gap-2 ml-4">
+                      <div className="flex items-center gap-2 lg:ml-4 self-start lg:self-auto flex-wrap">
                         <Button variant="outline" size="sm" asChild>
                           <Link
                             href={`/admin/events/${event.id}/registrations`}

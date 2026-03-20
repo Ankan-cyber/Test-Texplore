@@ -224,9 +224,9 @@ const ContactDataTable: React.FC<ContactDataTableProps> = ({
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="w-full sm:w-auto flex gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -330,7 +330,7 @@ const ContactDataTable: React.FC<ContactDataTableProps> = ({
                                 View
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
+                            <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-2xl max-h-[85vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>
                                   Contact Submission Details
@@ -340,7 +340,7 @@ const ContactDataTable: React.FC<ContactDataTableProps> = ({
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div>
                                     <label className="text-sm font-medium">
                                       From
@@ -432,7 +432,7 @@ const ContactDataTable: React.FC<ContactDataTableProps> = ({
 
       {/* Reply Dialog */}
       <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Reply to Contact Submission</DialogTitle>
             <DialogDescription>
@@ -459,7 +459,7 @@ const ContactDataTable: React.FC<ContactDataTableProps> = ({
                 className="mt-1"
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => {

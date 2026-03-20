@@ -193,10 +193,12 @@ export default function JoinClubManagementPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Join Club Applications</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">
+            Join Club Applications
+          </h1>
           <p className="text-muted-foreground">
             Manage and review applications from students wanting to join the
             club
@@ -211,7 +213,7 @@ export default function JoinClubManagementPage() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -347,7 +349,7 @@ export default function JoinClubManagementPage() {
                               </Button>
                             </DialogTrigger>
                             <DialogContent
-                              className="max-w-2xl max-h-[80vh] overflow-y-auto"
+                              className="w-[calc(100vw-2rem)] sm:w-full max-w-2xl max-h-[80vh] overflow-y-auto"
                               onInteractOutside={() => {
                                 setSelectedApplication(null);
                                 setReviewNotes('');
@@ -373,7 +375,7 @@ export default function JoinClubManagementPage() {
                                   <h3 className="font-semibold mb-3">
                                     Personal Information
                                   </h3>
-                                  <div className="grid grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                       <Label className="text-sm text-muted-foreground">
                                         Name
@@ -515,7 +517,7 @@ export default function JoinClubManagementPage() {
                                       />
                                     </div>
 
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2">
                                       <Button
                                         onClick={() =>
                                           handleStatusUpdate(
@@ -568,7 +570,7 @@ export default function JoinClubManagementPage() {
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="flex justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           <Button
             variant="outline"
             onClick={() =>

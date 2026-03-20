@@ -57,7 +57,7 @@ export default function ChangePasswordCard() {
         <form
           id="change-password-form"
           onSubmit={onSubmit}
-          className="grid gap-4 max-w-lg"
+          className="grid gap-4 w-full max-w-lg"
         >
           <div className="grid gap-2">
             <label htmlFor="currentPassword" className="text-sm font-medium">
@@ -107,7 +107,7 @@ export default function ChangePasswordCard() {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-primary text-white rounded disabled:opacity-60"
+              className="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded disabled:opacity-60"
             >
               {loading ? 'Updating...' : 'Update Password'}
             </button>

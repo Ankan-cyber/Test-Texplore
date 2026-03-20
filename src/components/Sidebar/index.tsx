@@ -187,7 +187,7 @@ export default function AdminSidebar({
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-4 left-4 z-50 lg:hidden bg-white/80 backdrop-blur-sm border border-gray-200 shadow-lg hover:bg-white"
+        className="fixed top-3 left-3 z-50 lg:hidden bg-white/80 backdrop-blur-sm border border-gray-200 shadow-lg hover:bg-white"
         onClick={toggleMobileSidebar}
       >
         {isMobileOpen ? (
@@ -201,7 +201,9 @@ export default function AdminSidebar({
       <aside
         className={cn(
           'fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out lg:translate-x-0',
-          isCollapsed ? 'w-24' : 'w-80',
+          isCollapsed
+            ? 'w-[85vw] max-w-[320px] lg:w-24'
+            : 'w-[85vw] max-w-[360px] lg:w-80',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full',
           'lg:relative lg:translate-x-0',
           className,
@@ -209,7 +211,7 @@ export default function AdminSidebar({
       >
         <div className="flex h-full flex-col bg-gradient-to-b from-white to-primary/5 border-r border-primary/20 dark:bg-gradient-to-b dark:from-gray-900 dark:to-primary/10 dark:border-primary/30 backdrop-blur-sm">
           {/* Header */}
-          <div className="flex h-20 items-center justify-between px-4 border-b border-primary/20 dark:border-primary/30 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+          <div className="flex h-16 lg:h-20 items-center justify-between px-3 lg:px-4 border-b border-primary/20 dark:border-primary/30 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
             {!isCollapsed && (
               <div className="flex items-center space-x-3">
                 <div className="relative">
@@ -264,7 +266,7 @@ export default function AdminSidebar({
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-2 px-3 py-6">
+          <nav className="flex-1 space-y-2 px-2.5 lg:px-3 py-4 lg:py-6">
             {filteredSidebarItems.map((item) => {
               const isActive = pathname === item.href;
 
@@ -282,7 +284,7 @@ export default function AdminSidebar({
                   href={item.href}
                   onClick={closeMobileSidebar}
                   className={cn(
-                    'group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 relative overflow-hidden',
+                    'group flex items-center px-3 py-2.5 lg:py-3 text-sm font-medium rounded-xl transition-all duration-200 relative overflow-hidden',
                     isActive
                       ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-lg shadow-primary/25'
                       : 'text-gray-700 hover:bg-primary/10 hover:text-primary dark:text-gray-300 dark:hover:bg-primary/20 dark:hover:text-white',

@@ -14,10 +14,12 @@ export default function AdminLayout({
 }>) {
   return (
     <SessionProvider>
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex min-h-screen lg:h-screen bg-gray-50 dark:bg-gray-900">
         <SidebarWrapper />
         <main className="flex-1 overflow-auto">
-          <div className="p-6">{children}</div>
+          <div className="p-4 pt-20 sm:p-5 sm:pt-20 lg:p-6 lg:pt-6">
+            {children}
+          </div>
         </main>
       </div>
     </SessionProvider>

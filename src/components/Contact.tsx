@@ -25,7 +25,7 @@ import {
 
 const CONTACT_INFO = {
   emails: {
-    contact: 'texploreamity@gmail.com',
+    contact: 'contact@texplore.in',
     admin: 'sukhmanjeetsinghvirk@gmail.com',
   },
   phone: '+91 7657991807',

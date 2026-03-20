@@ -67,6 +67,7 @@ export default function GalleryManager({
   >('all');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
+  const [isFolderPanelOpen, setIsFolderPanelOpen] = useState(false);
 
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
 
@@ -238,6 +239,11 @@ export default function GalleryManager({
   const handleFolderSelect = (folderId: string) => {
     setCurrentFolder(folderId);
     setSelectedItems([]);
+
+    // Close folder panel after selecting on smaller screens.
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsFolderPanelOpen(false);
+    }
 
     // Auto-expand parent folders to show the selected folder
     const expandParentFolders = (
@@ -828,7 +834,7 @@ export default function GalleryManager({
           <div
             className={`grid gap-4 ${
               viewMode === 'grid'
-                ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
+                ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
                 : 'grid-cols-1'
             }`}
           >
@@ -849,7 +855,7 @@ export default function GalleryManager({
       <div
         className={`grid gap-4 ${
           viewMode === 'grid'
-            ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
+            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
             : 'grid-cols-1'
         }`}
       >
@@ -977,9 +983,11 @@ export default function GalleryManager({
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col lg:flex-row">
       {/* Sidebar - Folder Tree */}
-      <div className="w-64 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <div
+        className={`${isFolderPanelOpen ? 'flex' : 'hidden'} lg:flex w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex-col`}
+      >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-lg text-gray-900 dark:text-white">
@@ -1030,7 +1038,7 @@ export default function GalleryManager({
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="border-b border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">
                 {isLoadingFolders
@@ -1054,7 +1062,17 @@ export default function GalleryManager({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="lg:hidden"
+                onClick={() => setIsFolderPanelOpen((prev) => !prev)}
+              >
+                <Folder className="h-4 w-4 mr-2" />
+                {isFolderPanelOpen ? 'Hide Folders' : 'Show Folders'}
+              </Button>
+
               {canUpload && currentFolder && (
                 <Button
                   onClick={() =>
@@ -1084,7 +1102,7 @@ export default function GalleryManager({
 
           {/* Search and Filters */}
           {currentFolder && (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
@@ -1098,7 +1116,7 @@ export default function GalleryManager({
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as any)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
               >
                 <option value="all">All Images</option>
                 <option value="approved">Approved</option>
@@ -1108,7 +1126,7 @@ export default function GalleryManager({
           )}
 
           {selectedItems.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={handleSelectAll}>
                 {selectedItems.length === images.length
                   ? 'Deselect All'

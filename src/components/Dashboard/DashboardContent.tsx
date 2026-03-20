@@ -310,7 +310,7 @@ export default function DashboardContent() {
                 {data.recent.users.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg"
                   >
                     <div className="flex-1">
                       <div className="font-medium">{user.name}</div>
@@ -321,7 +321,7 @@ export default function DashboardContent() {
                         {formatDate(user.createdAt)}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge className={getStatusColor(user.status)}>
                         {user.status}
                       </Badge>
@@ -349,7 +349,7 @@ export default function DashboardContent() {
                 {data.recent.events.map((event) => (
                   <div
                     key={event.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg"
                   >
                     <div className="flex-1">
                       <div className="font-medium">{event.title}</div>
@@ -362,7 +362,7 @@ export default function DashboardContent() {
                         {event.registrations} registrations
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge className={getStatusColor(event.status)}>
                         {event.status}
                       </Badge>

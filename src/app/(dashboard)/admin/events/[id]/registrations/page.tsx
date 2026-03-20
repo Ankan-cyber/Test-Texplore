@@ -113,12 +113,12 @@ export default function EventRegistrationsPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" asChild>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <Button variant="outline" asChild className="w-full sm:w-auto">
           <Link href="/admin/events">← Back to Events</Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
             Event Registrations
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">

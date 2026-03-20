@@ -84,7 +84,9 @@ export default function RegistrationsDataTable({
     {
       accessorKey: 'email',
       header: 'Email',
-      cell: ({ row }) => <div className="text-sm">{row.getValue('email')}</div>,
+      cell: ({ row }) => (
+        <div className="text-sm break-all sm:break-normal">{row.getValue('email')}</div>
+      ),
     },
     {
       accessorKey: 'phone',
