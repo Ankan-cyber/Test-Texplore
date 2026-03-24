@@ -42,9 +42,46 @@ export const joinClubListQuerySchema = paginationSchema
   })
   .strip();
 
+export const aboutListQuerySchema = paginationSchema
+  .extend({
+    department: z.string().trim().min(1).optional(),
+    isPublished: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+    sortBy: z.enum(['sortOrder', 'createdAt', 'displayName']).default('sortOrder'),
+    sortOrder: z.enum(['asc', 'desc']).default('asc'),
+  })
+  .strip();
+
+export const aboutCreateUpdateSchema = z.object({
+  displayName: z.string().trim().min(1, 'Name is required').max(255),
+  role: z.string().trim().min(1, 'Role is required').max(255),
+  department: z.string().trim().min(1).max(255).optional(),
+  bio: z.string().trim().max(2000).optional().nullable(),
+  galleryImageId: z.string().trim().max(255).optional().nullable(),
+  imageCloudinaryId: z.string().trim().max(255).optional().nullable(),
+  imageUrl: z.string().url().optional().nullable(),
+  sortOrder: z.number().int().min(0).default(0),
+  isPublished: z.boolean().default(true),
+  socialLinks: z.record(z.string(), z.string()).optional().nullable(),
+});
+
+export const aboutReorderSchema = z.object({
+  members: z.array(
+    z.object({
+      id: z.string().min(1),
+      sortOrder: z.number().int().min(0),
+    }),
+  ),
+});
+
 export type EventsListQuery = z.infer<typeof eventsListQuerySchema>;
 export type GalleryImagesListQuery = z.infer<typeof galleryImagesListQuerySchema>;
 export type JoinClubListQuery = z.infer<typeof joinClubListQuerySchema>;
+export type AboutListQuery = z.infer<typeof aboutListQuerySchema>;
+export type AboutCreateUpdateInput = z.infer<typeof aboutCreateUpdateSchema>;
+export type AboutReorderInput = z.infer<typeof aboutReorderSchema>;
 
 export function parseQuery<T>(
   schema: z.ZodType<T>,

@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Shield, ArrowLeft } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
 export default function UnauthorizedPage() {
   return (

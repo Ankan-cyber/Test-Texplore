@@ -123,12 +123,30 @@ export async function POST(request: NextRequest) {
     // Check if slug already exists
     const existingFolder = await prisma.galleryFolder.findUnique({
       where: { slug },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            children: true,
+            images: true,
+          },
+        },
+      },
     });
 
     if (existingFolder) {
       return NextResponse.json(
-        { error: 'A folder with this name already exists' },
-        { status: 409 },
+        {
+          success: true,
+          data: existingFolder,
+        },
+        { status: 200 },
       );
     }
 

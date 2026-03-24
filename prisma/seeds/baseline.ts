@@ -87,10 +87,10 @@ export async function seedBaseline(
   const adminPassword = await hashPassword(adminPasswordPlain);
 
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@texplore-amity.com' },
+    where: { email: 'admin@texplore.in' },
     update: {},
     create: {
-      email: 'admin@texplore-amity.com',
+      email: 'admin@texplore.in',
       name: 'Admin User',
       password: adminPassword,
       role: Role.admin,

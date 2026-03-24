@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  requireAnyUserPermission,
   requireAuthenticatedUser,
   requireUserPermission,
 } from '@/lib/api-guards';
+import { hasPermission } from '@/lib/permissions';
 import { galleryImagesListQuerySchema, parseQuery } from '@/lib/api-schemas';
 import {
   createGalleryImage,
@@ -38,10 +40,10 @@ export async function GET(request: NextRequest) {
       return authResult.response;
     }
 
-    const permissionResponse = requireUserPermission(
-      authResult.user,
+    const permissionResponse = requireAnyUserPermission(authResult.user, [
       'gallery:read',
-    );
+      'gallery:upload',
+    ]);
     if (permissionResponse) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
@@ -50,7 +52,16 @@ export async function GET(request: NextRequest) {
       galleryImagesListQuerySchema,
       new URL(request.url).searchParams,
     );
-    const result = await listGalleryImages(query);
+
+    const canReadAll = hasPermission(authResult.user.permissions, 'gallery:read');
+    const scopedQuery = canReadAll
+      ? query
+      : {
+          ...query,
+          uploaderId: authResult.user.id,
+        };
+
+    const result = await listGalleryImages(scopedQuery);
 
     return NextResponse.json({
       success: true,

@@ -71,16 +71,20 @@ export async function GET(request: NextRequest) {
       where.isArchived = false;
     }
 
-    // Get all folders with creator information
+    // Get all folders first; avoid including required creator relation directly
+    // because legacy/orphaned records may reference deleted users.
     const folders = await prisma.galleryFolder.findMany({
       where,
-      include: {
-        creator: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        isPublic: true,
+        isArchived: true,
+        createdAt: true,
+        parentId: true,
+        createdBy: true,
         _count: {
           select: {
             children: true,
@@ -91,12 +95,31 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     });
 
+    const creatorIds = Array.from(
+      new Set(folders.map((folder) => folder.createdBy).filter(Boolean)),
+    );
+
+    const creators = await prisma.user.findMany({
+      where: { id: { in: creatorIds } },
+      select: { id: true, name: true },
+    });
+
+    const creatorMap = new Map(creators.map((user) => [user.id, user.name]));
+
+    const foldersWithCreator = folders.map((folder) => ({
+      ...folder,
+      creator: {
+        id: folder.createdBy,
+        name: creatorMap.get(folder.createdBy) || 'Unknown User',
+      },
+    }));
+
     // Build hierarchical tree
-    const folderTree = buildFolderTree(folders);
+    const folderTree = buildFolderTree(foldersWithCreator);
 
     // Calculate total counts
-    const totalFolders = folders.length;
-    const totalImages = folders.reduce(
+    const totalFolders = foldersWithCreator.length;
+    const totalImages = foldersWithCreator.reduce(
       (sum, folder) => sum + folder._count.images,
       0,
     );

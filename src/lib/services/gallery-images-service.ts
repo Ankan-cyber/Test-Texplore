@@ -36,6 +36,14 @@ export const updateImageSchema = z.object({
 type CreateImageInput = z.infer<typeof createImageSchema>;
 type UpdateImageInput = z.infer<typeof updateImageSchema>;
 
+function getUnknownUploader(id: string) {
+  return {
+    id,
+    name: 'Unknown User',
+    email: 'unknown@local',
+  };
+}
+
 function buildImageWhere(query: GalleryImagesListQuery): Prisma.GalleryImageWhereInput {
   const where: Prisma.GalleryImageWhereInput = {};
 
@@ -82,13 +90,6 @@ export async function listGalleryImages(query: GalleryImagesListQuery) {
     prisma.galleryImage.findMany({
       where,
       include: {
-        uploader: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
         folder: {
           select: {
             id: true,
@@ -112,8 +113,30 @@ export async function listGalleryImages(query: GalleryImagesListQuery) {
     prisma.galleryImage.count({ where }),
   ]);
 
+  const uploaderIds = Array.from(
+    new Set(images.map((image) => image.uploadedBy).filter(Boolean)),
+  );
+
+  const uploaders = await prisma.user.findMany({
+    where: {
+      id: { in: uploaderIds },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+
+  const uploaderMap = new Map(uploaders.map((u) => [u.id, u]));
+
+  const imagesWithUploader = images.map((image) => ({
+    ...image,
+    uploader: uploaderMap.get(image.uploadedBy) || getUnknownUploader(image.uploadedBy),
+  }));
+
   return {
-    images,
+    images: imagesWithUploader,
     pagination: {
       page: query.page,
       limit: query.limit,
@@ -152,13 +175,6 @@ export async function createGalleryImage(user: User, input: CreateImageInput) {
       uploadedBy: user.id,
     },
     include: {
-      uploader: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       folder: {
         select: {
           id: true,
@@ -175,7 +191,14 @@ export async function createGalleryImage(user: User, input: CreateImageInput) {
     },
   });
 
-  return image;
+  return {
+    ...image,
+    uploader: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+  };
 }
 
 export async function getGalleryImageById(imageId: string) {
@@ -184,13 +207,6 @@ export async function getGalleryImageById(imageId: string) {
       id: imageId,
     },
     include: {
-      uploader: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       folder: {
         select: {
           id: true,
@@ -215,7 +231,19 @@ export async function getGalleryImageById(imageId: string) {
     throw new ServiceError('Image not found', 404);
   }
 
-  return image;
+  const uploader = await prisma.user.findUnique({
+    where: { id: image.uploadedBy },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+
+  return {
+    ...image,
+    uploader: uploader || getUnknownUploader(image.uploadedBy),
+  };
 }
 
 export async function updateGalleryImage(
@@ -262,13 +290,6 @@ export async function updateGalleryImage(
       updatedAt: new Date(),
     },
     include: {
-      uploader: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       folder: {
         select: {
           id: true,
@@ -285,7 +306,19 @@ export async function updateGalleryImage(
     },
   });
 
-  return updatedImage;
+  const uploader = await prisma.user.findUnique({
+    where: { id: updatedImage.uploadedBy },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+
+  return {
+    ...updatedImage,
+    uploader: uploader || getUnknownUploader(updatedImage.uploadedBy),
+  };
 }
 
 export async function deleteGalleryImageById(imageId: string, user: User) {

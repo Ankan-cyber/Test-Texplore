@@ -95,6 +95,7 @@ model User {
   // Simplified Role & Permissions
   role        Role
   permissions String[] // Direct permission array
+  isAboutProfileOnly Boolean @default(false)
 
   // Department
   departmentId String?     @db.ObjectId
@@ -118,8 +119,12 @@ model User {
   assignedById       String?             @db.ObjectId
   PasswordResetToken PasswordResetToken?
 
+  // About Section
+  aboutMember AboutMember?
+
   @@index([role])
   @@index([status])
+  @@index([isAboutProfileOnly])
   @@index([departmentId])
   @@index([assignedById])
 }
@@ -362,6 +367,9 @@ model GalleryImage {
   eventId String? @db.ObjectId
   event   Event?  @relation(fields: [eventId], references: [id])
 
+  // About profile association
+  aboutMembers AboutMember[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -405,4 +413,67 @@ model JoinClubApplication {
   @@index([status])
   @@index([createdAt])
   @@index([status, createdAt])
+}
+
+// About Section Models
+model AboutMember {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // User Link (1:1 relationship)
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Member Information
+  displayName String // Name to show on About page
+  bio         String? // Member bio/description
+  role        String? // e.g., "Faculty", "Lead", "Coordinator"
+  department  String? // Department or category
+
+  // Media
+  galleryImageId    String? @db.ObjectId
+  galleryImage      GalleryImage? @relation(fields: [galleryImageId], references: [id], onDelete: SetNull)
+  imageCloudinaryId String? // Cloudinary public ID for profile image
+  imageUrl          String? // Cloudinary CDN URL (denormalized for quick access)
+
+  // Social Links (JSON for flexibility)
+  socialLinks Json? // { linkedin, github, portfolio, etc. }
+
+  // Ordering
+  sortOrder Int @default(0) // For manual drag-and-drop ordering
+
+  // Visibility
+  isPublished Boolean @default(true) // Whether to show on public About page
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@index([isPublished])
+  @@index([department])
+  @@index([galleryImageId])
+}
+
+// Migration/Media Asset Tracking
+model MediaAsset {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Original File Info
+  originalPath      String // e.g., "public/leadership/president.jpeg"
+  originalFileName  String
+  sourceType        String // "leadership" or "departments"
+
+  // Cloudinary Info
+  cloudinaryPublicId String @unique
+  cloudinaryUrl      String
+
+  // Association (optional - for tracking which AboutMember uses this)
+  aboutMemberId String? @db.ObjectId
+
+  // Migration Status
+  migratedAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  @@index([sourceType])
+  @@index([aboutMemberId])
 }

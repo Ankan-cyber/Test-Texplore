@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || '';
     const origin = baseUrl.startsWith('http') ? baseUrl : `${baseUrl}`;
     const resetLink = `${origin}/auth/reset-password?token=${token}`;
+    console.log(resetLink)
     await sendPasswordResetEmail(user.email, user.name || '', resetLink);
 
     return NextResponse.json({ success: true });

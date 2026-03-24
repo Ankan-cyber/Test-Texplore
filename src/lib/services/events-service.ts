@@ -61,6 +61,14 @@ export const updateEventSchema = z.object({
 type CreateEventInput = z.infer<typeof createEventSchema>;
 type UpdateEventInput = z.infer<typeof updateEventSchema>;
 
+function getUnknownCreator(id: string) {
+  return {
+    id,
+    name: 'Unknown User',
+    email: 'unknown@local',
+  };
+}
+
 function normalizeLinks(links: string[]): string[] {
   const validateAndNormalizeUrl = (url: string): string | null => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -154,18 +162,12 @@ export async function listEvents(query: EventsListQuery, user: User | null) {
         category: true,
         createdAt: true,
         updatedAt: true,
+        createdById: true,
         department: {
           select: {
             id: true,
             name: true,
             displayName: true,
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
           },
         },
         registrations: {
@@ -186,8 +188,30 @@ export async function listEvents(query: EventsListQuery, user: User | null) {
     prisma.event.count({ where }),
   ]);
 
+  const creatorIds = Array.from(
+    new Set(events.map((event) => event.createdById).filter(Boolean)),
+  );
+
+  const creators = await prisma.user.findMany({
+    where: {
+      id: { in: creatorIds },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+
+  const creatorMap = new Map(creators.map((creator) => [creator.id, creator]));
+
+  const eventsWithCreator = events.map((event) => ({
+    ...event,
+    createdBy: creatorMap.get(event.createdById) || getUnknownCreator(event.createdById),
+  }));
+
   return {
-    events,
+    events: eventsWithCreator,
     pagination: {
       total,
       limit: query.limit,
@@ -217,13 +241,6 @@ export async function getEventById(id: string, user: User | null) {
           id: true,
           name: true,
           displayName: true,
-        },
-      },
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
         },
       },
       registrations: {
@@ -282,7 +299,19 @@ export async function getEventById(id: string, user: User | null) {
     throw new ServiceError('Event not found', 404);
   }
 
-  return event;
+  const creator = await prisma.user.findUnique({
+    where: { id: event.createdById },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+
+  return {
+    ...event,
+    createdBy: creator || getUnknownCreator(event.createdById),
+  };
 }
 
 export async function createEvent(user: User, input: CreateEventInput) {

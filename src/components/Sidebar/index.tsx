@@ -169,9 +169,17 @@ export default function AdminSidebar({
   };
 
   // Filter sidebar items based on user permissions
-  const filteredSidebarItems = accessibleFeatures
-    ? sidebarItems.filter((item) => accessibleFeatures[item.permissionKey])
-    : sidebarItems;
+  const filteredSidebarItems = user?.isAboutProfileOnly
+    ? []
+    : accessibleFeatures
+      ? sidebarItems.filter((item) => accessibleFeatures[item.permissionKey])
+      : sidebarItems;
+  const canManageAbout =
+    user?.permissions?.includes('about:manage') ||
+    user?.permissions?.includes('*');
+  const canAccessMyAboutProfile =
+    user?.permissions?.includes('about:self:update') ||
+    user?.permissions?.includes('*');
 
   return (
     <>
@@ -187,7 +195,7 @@ export default function AdminSidebar({
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-3 left-3 z-50 lg:hidden bg-white/80 backdrop-blur-sm border border-gray-200 shadow-lg hover:bg-white"
+        className={cn('fixed top-3 z-50 lg:hidden bg-white/80 backdrop-blur-sm border border-gray-200 shadow-lg hover:bg-white',isMobileOpen ? 'right-3' : 'left-3',)}
         onClick={toggleMobileSidebar}
       >
         {isMobileOpen ? (
@@ -245,9 +253,6 @@ export default function AdminSidebar({
                     height={20}
                     className="rounded-md"
                   />
-                </div>
-                <div className="absolute -top-1 -right-1">
-                  <Sparkles className="h-3 w-3 text-primary animate-pulse" />
                 </div>
               </div>
             )}
@@ -342,6 +347,120 @@ export default function AdminSidebar({
                 </Link>
               );
             })}
+
+            {(canManageAbout || canAccessMyAboutProfile) && (
+              <>
+                {!isCollapsed && (
+                  <div className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-primary/70 dark:text-primary/60">
+                    About
+                  </div>
+                )}
+
+                {canManageAbout && (() => {
+                  const isActive = pathname === '/admin/about';
+
+                  return (
+                    <Link
+                      href="/admin/about"
+                      onClick={closeMobileSidebar}
+                      className={cn(
+                        'group flex items-center px-3 py-2.5 lg:py-3 text-sm font-medium rounded-xl transition-all duration-200 relative overflow-hidden',
+                        isActive
+                          ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-lg shadow-primary/25'
+                          : 'text-gray-700 hover:bg-primary/10 hover:text-primary dark:text-gray-300 dark:hover:bg-primary/20 dark:hover:text-white',
+                      )}
+                    >
+                      {isActive && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/20 rounded-xl" />
+                      )}
+
+                      <div className="relative z-10 flex items-center w-full">
+                        <div
+                          className={cn(
+                            'flex items-center justify-center h-9 w-9 rounded-lg transition-all duration-200',
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : 'bg-primary/10 text-primary group-hover:bg-primary/20 dark:bg-primary/20 dark:text-primary/80 dark:group-hover:bg-primary/30',
+                          )}
+                        >
+                          <Users className="h-4 w-4" />
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="ml-3 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">About Members</span>
+                            </div>
+                            <p
+                              className={cn(
+                                'text-xs mt-0.5',
+                                isActive
+                                  ? 'text-white/80'
+                                  : 'text-primary/70 dark:text-primary/60',
+                              )}
+                            >
+                              Manage About section members
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })()}
+
+                {canAccessMyAboutProfile && (() => {
+                  const isActive = pathname === '/admin/about/my-profile';
+
+                  return (
+                    <Link
+                      href="/admin/about/my-profile"
+                      onClick={closeMobileSidebar}
+                      className={cn(
+                        'group flex items-center px-3 py-2.5 lg:py-3 text-sm font-medium rounded-xl transition-all duration-200 relative overflow-hidden',
+                        isActive
+                          ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-lg shadow-primary/25'
+                          : 'text-gray-700 hover:bg-primary/10 hover:text-primary dark:text-gray-300 dark:hover:bg-primary/20 dark:hover:text-white',
+                      )}
+                    >
+                      {isActive && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/20 rounded-xl" />
+                      )}
+
+                      <div className="relative z-10 flex items-center w-full">
+                        <div
+                          className={cn(
+                            'flex items-center justify-center h-9 w-9 rounded-lg transition-all duration-200',
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : 'bg-primary/10 text-primary group-hover:bg-primary/20 dark:bg-primary/20 dark:text-primary/80 dark:group-hover:bg-primary/30',
+                          )}
+                        >
+                          <User className="h-4 w-4" />
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="ml-3 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">My About Profile</span>
+                            </div>
+                            <p
+                              className={cn(
+                                'text-xs mt-0.5',
+                                isActive
+                                  ? 'text-white/80'
+                                  : 'text-primary/70 dark:text-primary/60',
+                              )}
+                            >
+                              Edit your public profile
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })()}
+              </>
+            )}
           </nav>
 
           {/* User Profile Section */}

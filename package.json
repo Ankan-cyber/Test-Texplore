@@ -18,7 +18,9 @@
     "db:push": "npx prisma db push",
     "db:seed": "SEED_DEMO_DATA=false tsx prisma/seed.ts",
     "db:seed:baseline": "SEED_DEMO_DATA=false tsx prisma/seed.ts",
-    "db:seed:demo": "SEED_DEMO_DATA=true tsx prisma/seed.ts"
+    "db:seed:demo": "SEED_DEMO_DATA=true tsx prisma/seed.ts",
+    "about:migrate-images": "tsx scripts/migrate-public-images-to-cloudinary.ts",
+    "about:seed-members": "tsx scripts/backfill-about-members.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

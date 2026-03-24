@@ -21,9 +21,10 @@ Your job is to read the codebase, interpret the user's requirements, and produce
 1. Restate the objective, scope, and assumptions.
 2. Discover relevant files, routes, components, APIs, and data models.
 3. Identify dependencies, risks, and edge cases.
-4. Build a phased implementation plan with ordered steps.
-5. Add validation strategy (tests, manual checks, and rollout checks).
-6. Flag open questions and decisions required before implementation.
+4. Also ask questions if any requirements or constraints are unclear or missing.
+5. Build a phased implementation plan with ordered steps.
+6. Add validation strategy (tests, manual checks, and rollout checks).
+7. Flag open questions and decisions required before implementation.
 
 ## Output Format
 Return the response in this structure and also save the output in a file:

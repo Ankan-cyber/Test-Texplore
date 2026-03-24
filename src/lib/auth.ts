@@ -16,6 +16,7 @@ export interface User {
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
   role: 'member' | 'coordinator' | 'vice_president' | 'president' | 'admin';
   permissions: string[];
+  isAboutProfileOnly?: boolean;
   departmentId?: string;
   profile?: {
     id: string;
@@ -49,6 +50,7 @@ function convertPrismaUserToUser(prismaUser: any): User {
     status: prismaUser.status,
     role: prismaUser.role,
     permissions: prismaUser.permissions || [],
+    isAboutProfileOnly: Boolean(prismaUser.isAboutProfileOnly),
     departmentId: prismaUser.departmentId,
     profile: prismaUser.profile,
   };
@@ -74,10 +76,11 @@ export async function createUser(
   password: string,
 ): Promise<User> {
   const hashedPassword = await hashPassword(password);
+  const normalizedEmail = email.trim().toLowerCase();
 
   const prismaUser = await prisma.user.create({
     data: {
-      email,
+      email: normalizedEmail,
       name,
       password: hashedPassword,
       role: 'member',
@@ -99,8 +102,10 @@ export async function createUser(
 
 // Get user by email
 export async function getUserByEmail(email: string): Promise<User | null> {
+  const normalizedEmail = email.trim().toLowerCase();
+
   const prismaUser = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
     include: {
       profile: true,
     },
@@ -208,10 +213,22 @@ export function getFirstAccessibleAdminRoute(user: User): string | null {
     hasPermission(user, 'join-club:view') ||
     hasPermission(user, 'join-club:manage') ||
     hasPermission(user, 'join-club:delete') ||
+    hasPermission(user, 'about:read') ||
+    hasPermission(user, 'about:manage') ||
+    hasPermission(user, 'about:self:update') ||
     user.role === 'admin';
 
   if (!hasAnyAdminAccess) {
     return null;
+  }
+
+  // Route about-profile users to their own profile first.
+  if (hasPermission(user, 'about:self:update')) {
+    return '/admin/about/my-profile';
+  }
+
+  if (hasPermission(user, 'about:manage')) {
+    return '/admin/about';
   }
 
   // Check each route in order of sidebar items

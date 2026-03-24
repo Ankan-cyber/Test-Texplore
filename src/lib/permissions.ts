@@ -35,6 +35,10 @@ export type Permission =
   | 'join-club:view'
   | 'join-club:manage'
   | 'join-club:delete'
+  // About Section Management
+  | 'about:read'
+  | 'about:manage'
+  | 'about:self:update'
   // Settings Management
   | 'settings:access'
   // Website Management (removed - unused)
@@ -76,6 +80,10 @@ export const ALL_PERMISSIONS: Permission[] = [
   'join-club:view',
   'join-club:manage',
   'join-club:delete',
+  // About Section Management
+  'about:read',
+  'about:manage',
+  'about:self:update',
   // Settings Management
   'settings:access',
   // Website Management (removed)
@@ -124,6 +132,11 @@ export const PERMISSION_GROUPS = {
     'join-club:manage',
     'join-club:delete',
   ],
+  'About Section Management': [
+    'about:read',
+    'about:manage',
+    'about:self:update',
+  ],
   'Settings Management': [
     'settings:access',
   ],
@@ -147,6 +160,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'gallery:read',
     'contact:submit',
     'join-club:submit',
+    'about:read',
+    'about:self:update',
     'settings:access',
   ],
   coordinator: [
@@ -159,6 +174,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'contact:update',
     'join-club:view',
     'join-club:manage',
+    'about:read',
+    'about:self:update',
     'settings:access',
     'user:read',
   ],
@@ -176,6 +193,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'join-club:view',
     'join-club:manage',
     'join-club:delete',
+    'about:read',
+    'about:manage',
+    'about:self:update',
     'user:read',
     'user:create',
     'user:update',
@@ -198,6 +218,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'join-club:view',
     'join-club:manage',
     'join-club:delete',
+    'about:read',
+    'about:manage',
+    'about:self:update',
     'user:read',
     'user:create',
     'user:update',
@@ -382,6 +405,11 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'join-club:manage': 'Manage join club applications',
   'join-club:delete': 'Delete join club applications',
 
+  // About Section Management
+  'about:read': 'View about section and member profiles',
+  'about:manage': 'Manage about section members',
+  'about:self:update': 'Update own about profile',
+
   // Settings Management
   'settings:access': 'Access settings page and change password',
 
@@ -474,6 +502,20 @@ export function canReadGallery(userPermissions: string[]): boolean {
 
 export function canAccessSettings(userPermissions: string[]): boolean {
   return hasPermission(userPermissions, 'settings:access');
+}
+
+export function canManageAbout(userPermissions: string[]): boolean {
+  return hasPermission(userPermissions, 'about:manage');
+}
+
+export function canUpdateOwnAboutProfile(
+  userPermissions: string[],
+): boolean {
+  return hasPermission(userPermissions, 'about:self:update');
+}
+
+export function canReadAbout(userPermissions: string[]): boolean {
+  return hasPermission(userPermissions, 'about:read');
 }
 
 // Website settings permission removed; gate via role or feature flags

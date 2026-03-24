@@ -8,6 +8,36 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Mail, Lock, ArrowLeft, Shield } from 'lucide-react';
 
+function getApiErrorMessage(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    return 'Login failed';
+  }
+
+  const data = payload as {
+    error?: string | { message?: string };
+    message?: string;
+  };
+
+  if (typeof data.error === 'string' && data.error.trim()) {
+    return data.error;
+  }
+
+  if (
+    data.error &&
+    typeof data.error === 'object' &&
+    typeof data.error.message === 'string' &&
+    data.error.message.trim()
+  ) {
+    return data.error.message;
+  }
+
+  if (typeof data.message === 'string' && data.message.trim()) {
+    return data.message;
+  }
+
+  return 'Login failed';
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,13 +58,16 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(getApiErrorMessage(data));
       }
 
       // Redirect to the user's first accessible admin route

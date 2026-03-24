@@ -1,28 +1,79 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Target, Heart, Star, ArrowRight } from 'lucide-react';
+import { Users, Target, Heart, Star, ArrowRight, X, Linkedin, Github, Globe } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ClubSettings } from '@/types/common';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { isFeatureEnabled } from '@/lib/feature-flags';
+
+interface AboutMember {
+  id: string;
+  displayName: string;
+  role: string;
+  bio: string;
+  category: string;
+  imageCloudinaryUrl?: string;
+  imageThumbnailUrl?: string;
+  galleryImageId?: string;
+  linkedinUrl?: string;
+  githubUrl?: string;
+  portfolioUrl?: string;
+}
 
 const About = () => {
   const [clubSettings, setClubSettings] = useState<ClubSettings | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredImage, setHoveredImage] = useState<{
     src: string;
     name: string;
     role: string;
   } | null>(null);
+  const [selectedMember, setSelectedMember] = useState<AboutMember | null>(null);
+  const [leaders, setLeaders] = useState<AboutMember[]>([]);
+  const [departments, setDepartments] = useState<AboutMember[]>([]);
+
+  // Fetch about members from API
+  useEffect(() => {
+    const fetchMembers = async () => {
+      // Check if About system is enabled
+      if (!isFeatureEnabled('ABOUT_SYSTEM_ENABLED')) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await fetch('/api/about', { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          setLeaders(data.filter((m: AboutMember) => m.category === 'LEADERSHIP'));
+          setDepartments(data.filter((m: AboutMember) => m.category === 'DEPARTMENT'));
+          setError(null);
+        } else if (response.status === 404 || response.status === 500) {
+          // API not available, use fallback
+          console.warn('About API not available, using fallback data');
+        }
+      } catch (err) {
+        console.error('Failed to fetch about members:', err);
+        // Silently fail and use fallback - don't show error to user
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, []);
 
   // Departments with head images
   // To add images: Place images in /public/departments/ folder
   // Update the image paths below with actual image paths
-  const departments = [
+  const departmentsStaticFallback = [
     {
       name: 'Event Management Team',
       head: 'Tejveer singh',
@@ -91,7 +142,7 @@ const About = () => {
     {
       name: 'Human Resources Team',
       head: 'Vanshika Rastogi',
-      headImage: '/departments/hr-head.jpeg', // Update with actual image path
+      headImage: '/departments/hr-head.jpg', // Update with actual image path
       description:
         'Manages member onboarding, role assignments, internal communication, and team well-being.',
       responsibilities: [
@@ -132,7 +183,7 @@ const About = () => {
   // Leadership members with their images
   // To add images: Place images in /public/leadership/ folder or use Cloudinary URLs
   // Update the image paths below with actual image paths
-  const leaders = [
+  const leadersStaticFallback = [
     {
       name: 'Sukhmanjeet Singh',
       role: 'President',
@@ -174,6 +225,28 @@ const About = () => {
       image: '/leadership/faculty1.jpeg',
     },
   ];
+
+  const leadershipSource: any[] =
+    leaders.length > 0 ? leaders : leadersStaticFallback;
+
+  const executiveLeaders = leadershipSource.filter((member) => {
+    const role = (member.role || '').toLowerCase();
+    return role.includes('president');
+  });
+
+  const fallbackExecutiveLeaders = leadershipSource.slice(0, 2);
+  const effectiveExecutiveLeaders =
+    executiveLeaders.length > 0 ? executiveLeaders : fallbackExecutiveLeaders;
+
+  const leadershipIds = new Set(
+    effectiveExecutiveLeaders.map((member) => member.id || member.name),
+  );
+  const facultyLeaders = leadershipSource.filter(
+    (member) => !leadershipIds.has(member.id || member.name),
+  );
+
+  const departmentSource: any[] =
+    departments.length > 0 ? departments : departmentsStaticFallback;
 
   return (
     <div className="min-h-screen bg-background">
@@ -359,31 +432,30 @@ const About = () => {
             <h3 className="text-base md:text-xl font-semibold text-center mb-4 md:mb-6 text-primary">
               Executive Leadership
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 max-w-3xl mx-auto">
-              {leaders.slice(0, 2).map((leader, index) => (
-                <Card key={index} className="hover-scale text-center">
+            <div
+              className={[
+                'grid gap-4 md:gap-6 mx-auto justify-items-center',
+                effectiveExecutiveLeaders.length <= 1
+                  ? 'grid-cols-1 max-w-md'
+                  : 'grid-cols-1 md:grid-cols-2 max-w-3xl',
+              ].join(' ')}
+            >
+              {effectiveExecutiveLeaders.map((leader, index) => (
+                <Card
+                  key={leader.id || leader.name || index}
+                  className="hover-scale text-center cursor-pointer w-full"
+                  onClick={() => leaders.length > 0 && setSelectedMember(leader)}
+                >
                   <CardContent className="p-4 md:p-6">
-                    <div
-                      className="w-24 h-24 md:w-32 md:h-32 rounded-full mx-auto mb-3 md:mb-4 overflow-hidden border-4 border-primary/20 shadow-lg cursor-pointer relative z-10"
-                      onMouseEnter={() => {
-                        if (
-                          leader.image &&
-                          leader.image !== '/placeholder-avatar.jpg'
-                        ) {
-                          setHoveredImage({
-                            src: leader.image,
-                            name: leader.name,
-                            role: leader.role,
-                          });
-                        }
-                      }}
-                      onMouseLeave={() => setHoveredImage(null)}
-                    >
-                      {leader.image &&
-                      leader.image !== '/placeholder-avatar.jpg' ? (
+                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full mx-auto mb-3 md:mb-4 overflow-hidden border-4 border-primary/20 shadow-lg">
+                      {(leader.imageCloudinaryUrl || (leader as any).image) ? (
                         <Image
-                          src={leader.image}
-                          alt={leader.name}
+                          src={
+                            leader.imageCloudinaryUrl ||
+                            leader.imageThumbnailUrl ||
+                            (leader as any).image
+                          }
+                          alt={leader.displayName || (leader as any).name}
                           width={128}
                           height={128}
                           className="w-full h-full object-cover"
@@ -396,7 +468,7 @@ const About = () => {
                     </div>
                     <div className="space-y-1.5 md:space-y-2">
                       <h3 className="font-bold text-sm md:text-base leading-tight">
-                        {leader.name}
+                        {leader.displayName || (leader as any).name}
                       </h3>
                       <Badge
                         variant="secondary"
@@ -416,31 +488,25 @@ const About = () => {
             <h3 className="text-base md:text-xl font-semibold text-center mb-4 md:mb-6 text-primary">
               Faculty Members
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 max-w-6xl mx-auto">
-              {leaders.slice(2).map((leader, index) => (
-                <Card key={index + 2} className="hover-scale text-center">
+            <div
+              className="grid gap-4 md:gap-6 max-w-6xl mx-auto justify-items-center [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]"
+            >
+              {facultyLeaders.map((leader, index) => (
+                <Card
+                  key={leader.id || leader.name || index}
+                  className="hover-scale text-center cursor-pointer w-full max-w-[220px]"
+                  onClick={() => leaders.length > 0 && setSelectedMember(leader)}
+                >
                   <CardContent className="p-3 md:p-6">
-                    <div
-                      className="w-20 h-20 md:w-32 md:h-32 rounded-full mx-auto mb-3 md:mb-4 overflow-hidden border-4 border-primary/20 shadow-lg cursor-pointer relative z-10"
-                      onMouseEnter={() => {
-                        if (
-                          leader.image &&
-                          leader.image !== '/placeholder-avatar.jpg'
-                        ) {
-                          setHoveredImage({
-                            src: leader.image,
-                            name: leader.name,
-                            role: leader.role,
-                          });
-                        }
-                      }}
-                      onMouseLeave={() => setHoveredImage(null)}
-                    >
-                      {leader.image &&
-                      leader.image !== '/placeholder-avatar.jpg' ? (
+                    <div className="w-20 h-20 md:w-32 md:h-32 rounded-full mx-auto mb-3 md:mb-4 overflow-hidden border-4 border-primary/20 shadow-lg">
+                      {(leader.imageCloudinaryUrl || (leader as any).image) ? (
                         <Image
-                          src={leader.image}
-                          alt={leader.name}
+                          src={
+                            leader.imageCloudinaryUrl ||
+                            leader.imageThumbnailUrl ||
+                            (leader as any).image
+                          }
+                          alt={leader.displayName || (leader as any).name}
                           width={128}
                           height={128}
                           className="w-full h-full object-cover"
@@ -453,21 +519,14 @@ const About = () => {
                     </div>
                     <div className="space-y-1.5 md:space-y-2.5">
                       <h3 className="font-bold text-xs md:text-base leading-tight mb-0.5 md:mb-1">
-                        {leader.name}
+                        {leader.displayName || (leader as any).name}
                       </h3>
-                      <div className="flex flex-col items-center gap-1 md:gap-2">
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] md:text-xs font-semibold px-2 md:px-3 py-0.5 md:py-1 whitespace-nowrap"
-                        >
-                          {leader.role}
-                        </Badge>
-                        {(leader as any).additionalRole && (
-                          <p className="text-[9px] md:text-[11px] text-muted-foreground font-medium text-center leading-tight px-1 md:px-2">
-                            {(leader as any).additionalRole}
-                          </p>
-                        )}
-                      </div>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] md:text-xs font-semibold px-2 md:px-3 py-0.5 md:py-1 whitespace-nowrap"
+                      >
+                        {leader.role}
+                      </Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -496,40 +555,31 @@ const About = () => {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {departments.map((dept, index) => (
-              <Card key={index} className="hover-scale group">
+          <div
+            className="grid gap-4 md:gap-6 justify-items-center [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]"
+          >
+            {departmentSource.map((dept, index) => (
+              <Card
+                key={index}
+                className="hover-scale group cursor-pointer w-full max-w-[420px]"
+                onClick={() =>
+                  departments.length > 0 && setSelectedMember(dept as AboutMember)
+                }
+              >
                 <CardHeader className="p-4 md:p-6">
-                  {/* Department Head Image */}
                   <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-                    <div
-                      className="w-12 h-12 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-primary/20 shadow-md flex-shrink-0 cursor-pointer relative z-10"
-                      onMouseEnter={() => {
-                        if (
-                          dept.headImage &&
-                          dept.headImage !== '/placeholder-avatar.jpg'
-                        ) {
-                          setHoveredImage({
-                            src: dept.headImage,
-                            name: dept.head,
-                            role: dept.name,
-                          });
-                        }
-                      }}
-                      onMouseLeave={() => setHoveredImage(null)}
-                    >
-                      {dept.headImage &&
-                      dept.headImage !== '/placeholder-avatar.jpg' ? (
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-primary/20 shadow-md flex-shrink-0">
+                      {(dept.imageCloudinaryUrl || (dept as any).headImage) ? (
                         <Image
-                          src={dept.headImage}
-                          alt={dept.head}
+                          src={
+                            dept.imageCloudinaryUrl ||
+                            dept.imageThumbnailUrl ||
+                            (dept as any).headImage
+                          }
+                          alt={dept.displayName || (dept as any).head}
                           width={64}
                           height={64}
-                          className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-300 ${
-                            dept.headImage === '/departments/Event-head2.jpeg'
-                              ? 'event-head2-image'
-                              : ''
-                          }`}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                         />
                       ) : (
                         <div className="w-full h-full bg-primary/10 flex items-center justify-center">
@@ -539,34 +589,18 @@ const About = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-sm md:text-lg mb-1">
-                        {dept.name}
+                        {dept.displayName || (dept as any).name}
                       </CardTitle>
-                      <p className="text-xs md:text-sm text-primary font-medium">
-                        Head: {dept.head}
+                      <p className="text-xs md:text-sm text-primary font-medium truncate">
+                        Head: {dept.displayName || (dept as any).head}
                       </p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 pt-0">
                   <p className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 line-clamp-2 md:line-clamp-none">
-                    {dept.description}
+                    {dept.bio || (dept as any).description}
                   </p>
-                  <div className="space-y-1.5 md:space-y-2">
-                    <p className="text-xs md:text-sm font-medium">
-                      Key Responsibilities:
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 md:gap-2">
-                      {dept.responsibilities.map((resp: string, i: number) => (
-                        <Badge
-                          key={i}
-                          variant="outline"
-                          className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5"
-                        >
-                          {resp.trim()}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -574,30 +608,84 @@ const About = () => {
         </div>
       </section>
 
-      {/* Image Preview Overlay */}
-      {hoveredImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          {/* Blurred Background */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-md" />
+      {/* Member Details Modal */}
+      <Dialog open={!!selectedMember} onOpenChange={(open) => !open && setSelectedMember(null)}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-md">
+          {selectedMember && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center">{selectedMember.displayName}</DialogTitle>
+              </DialogHeader>
 
-          {/* Circular Image Pop-up */}
-          <div className="relative z-50 animate-fadeInScale pointer-events-none">
-            <div className="relative w-80 h-80 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-2xl">
-              <Image
-                src={hoveredImage.src}
-                alt={hoveredImage.name}
-                width={320}
-                height={320}
-                className={`w-full h-full object-cover ${
-                  hoveredImage.src === '/departments/Event-head2.jpeg'
-                    ? 'event-head2-image'
-                    : ''
-                }`}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="space-y-4">
+                {/* Profile Image */}
+                {selectedMember.imageCloudinaryUrl && (
+                  <div className="flex justify-center">
+                    <div className="w-32 h-32 rounded-lg overflow-hidden border-2 border-primary/20">
+                      <Image
+                        src={selectedMember.imageCloudinaryUrl}
+                        alt={selectedMember.displayName}
+                        width={128}
+                        height={128}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Role */}
+                <div className="text-center">
+                  <h3 className="font-semibold">{selectedMember.role}</h3>
+                </div>
+
+                {/* Bio */}
+                {selectedMember.bio && (
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <p className="text-sm">{selectedMember.bio}</p>
+                  </div>
+                )}
+
+                {/* Social Links */}
+                <div className="flex justify-center gap-3 pt-4">
+                  {selectedMember.linkedinUrl && (
+                    <a
+                      href={selectedMember.linkedinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 transition"
+                      title="LinkedIn"
+                    >
+                      <Linkedin className="h-5 w-5" />
+                    </a>
+                  )}
+                  {selectedMember.githubUrl && (
+                    <a
+                      href={selectedMember.githubUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 transition"
+                      title="GitHub"
+                    >
+                      <Github className="h-5 w-5" />
+                    </a>
+                  )}
+                  {selectedMember.portfolioUrl && (
+                    <a
+                      href={selectedMember.portfolioUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 transition"
+                      title="Portfolio"
+                    >
+                      <Globe className="h-5 w-5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* CTA Section */}
       <section className="py-8 md:py-16 bg-gradient-to-r from-primary to-accent text-primary-foreground">

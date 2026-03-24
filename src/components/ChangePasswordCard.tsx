@@ -39,6 +39,11 @@ export default function ChangePasswordCard() {
         throw new Error(errorMessage);
       }
       setSuccess('Password updated successfully');
+      await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       form.reset();
     } catch (e: any) {
       setError(e.message || 'Failed to change password');
