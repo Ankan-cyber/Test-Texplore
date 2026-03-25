@@ -100,7 +100,7 @@ const rateLimiter = new RateLimiter();
 export const RATE_LIMIT_CONFIGS = {
   // Auth endpoints: stricter limits to prevent brute force
   LOGIN: {
-    maxRequests: 5,
+    maxRequests: 15,
     windowMs: 15 * 60 * 1000, // 15 minutes
     message: 'Too many login attempts, please try again later',
   },
