@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
+    
 
     const body = await request.json();
     const { email } = requestSchema.parse(body);
