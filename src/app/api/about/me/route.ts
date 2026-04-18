@@ -33,6 +33,7 @@ export async function GET() {
           displayName: authResult.user.name || 'New Member',
           role: 'Member',
           bio: null,
+          resumeUrl: null,
           department: 'OTHER',
           imageUrl: authResult.user.image || null,
           imageCloudinaryId: null,
@@ -122,6 +123,12 @@ export async function PATCH(request: NextRequest) {
         typeof body.displayName === 'string' ? body.displayName : undefined,
       role: typeof body.role === 'string' ? body.role : undefined,
       bio: typeof body.bio === 'string' ? body.bio : undefined,
+      resumeUrl:
+        typeof body.resumeUrl === 'string'
+          ? body.resumeUrl.trim()
+            ? body.resumeUrl
+            : null
+          : undefined,
       imageCloudinaryId:
         typeof body.imageCloudinaryId === 'string'
           ? body.imageCloudinaryId

@@ -59,6 +59,7 @@ export const aboutCreateUpdateSchema = z.object({
   role: z.string().trim().min(1, 'Role is required').max(255),
   department: z.string().trim().min(1).max(255).optional(),
   bio: z.string().trim().max(2000).optional().nullable(),
+  resumeUrl: z.string().url().optional().nullable(),
   galleryImageId: z.string().trim().max(255).optional().nullable(),
   imageCloudinaryId: z.string().trim().max(255).optional().nullable(),
   imageUrl: z.string().url().optional().nullable(),

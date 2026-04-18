@@ -7,6 +7,7 @@ export interface AboutMemberWithUser {
   userId: string;
   displayName: string;
   bio: string | null;
+  resumeUrl: string | null;
   role: string | null;
   department: string | null;
   imageCloudinaryId: string | null;
@@ -30,6 +31,12 @@ export interface AboutMemberWithUser {
   } | null;
 }
 
+type ResolvedUser = {
+  id: string;
+  email: string;
+  name: string;
+};
+
 export class AboutMembersService {
   private static get aboutMember() {
     const model = (prisma as unknown as { aboutMember?: any }).aboutMember;
@@ -52,7 +59,7 @@ export class AboutMembersService {
   ) {
     const userIds = Array.from(new Set(members.map((member) => member.userId)));
 
-    const users = await prisma.user.findMany({
+    const users: ResolvedUser[] = await prisma.user.findMany({
       where: {
         id: { in: userIds },
       },
@@ -63,7 +70,7 @@ export class AboutMembersService {
       },
     });
 
-    const userMap = new Map(users.map((user) => [user.id, user]));
+    const userMap = new Map(users.map((user: ResolvedUser) => [user.id, user]));
 
     return members.map((member) => ({
       ...member,
@@ -309,6 +316,7 @@ export class AboutMembersService {
         id: true,
         displayName: true,
         bio: true,
+        resumeUrl: true,
         role: true,
         department: true,
         galleryImageId: true,

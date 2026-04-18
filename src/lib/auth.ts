@@ -17,6 +17,9 @@ export interface User {
   role: 'member' | 'coordinator' | 'vice_president' | 'president' | 'admin';
   permissions: string[];
   departmentId?: string;
+  aboutMember?: {
+    imageUrl?: string | null;
+  } | null;
   profile?: {
     id: string;
     userId: string;
@@ -50,6 +53,7 @@ function convertPrismaUserToUser(prismaUser: any): User {
     role: prismaUser.role,
     permissions: prismaUser.permissions || [],
     departmentId: prismaUser.departmentId,
+    aboutMember: prismaUser.aboutMember,
     profile: prismaUser.profile,
   };
 }
@@ -91,6 +95,11 @@ export async function createUser(
       status: 'PENDING',
     },
     include: {
+      aboutMember: {
+        select: {
+          imageUrl: true,
+        },
+      },
       profile: true,
     },
   });
@@ -105,6 +114,11 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   const prismaUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
     include: {
+      aboutMember: {
+        select: {
+          imageUrl: true,
+        },
+      },
       profile: true,
     },
   });
@@ -117,6 +131,11 @@ export async function getUserById(id: string): Promise<User | null> {
   const prismaUser = await prisma.user.findUnique({
     where: { id },
     include: {
+      aboutMember: {
+        select: {
+          imageUrl: true,
+        },
+      },
       profile: true,
     },
   });

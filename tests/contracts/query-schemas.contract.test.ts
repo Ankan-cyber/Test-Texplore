@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  aboutCreateUpdateSchema,
   eventsListQuerySchema,
   galleryImagesListQuerySchema,
   joinClubListQuerySchema,
@@ -59,4 +60,26 @@ test('join-club list query schema uses pagination defaults', () => {
   assert.equal(parsed.page, 1);
   assert.equal(parsed.limit, 20);
   assert.equal(parsed.status, undefined);
+});
+
+test('about create/update schema accepts valid resumeUrl', () => {
+  const parsed = aboutCreateUpdateSchema.parse({
+    displayName: 'Resume User',
+    role: 'Coordinator',
+    resumeUrl: 'https://res.cloudinary.com/demo/raw/upload/v1/resume.pdf',
+  });
+
+  assert.equal(parsed.resumeUrl, 'https://res.cloudinary.com/demo/raw/upload/v1/resume.pdf');
+});
+
+test('about create/update schema rejects invalid resumeUrl', () => {
+  assert.throws(
+    () =>
+      aboutCreateUpdateSchema.parse({
+        displayName: 'Resume User',
+        role: 'Coordinator',
+        resumeUrl: 'not-a-url',
+      }),
+    /Invalid URL|Invalid input/,
+  );
 });

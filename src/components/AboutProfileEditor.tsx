@@ -7,7 +7,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import toast from 'react-hot-toast';
-import { AlertCircle, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import {
+  AlertCircle,
+  Upload,
+  Loader2,
+  FileText,
+  ExternalLink,
+  X,
+  Image as ImageIcon,
+} from 'lucide-react';
 import {
   getOrCreateAboutProfileFolder,
 } from '@/lib/gallery-folder-helper';
@@ -16,6 +24,7 @@ interface AboutProfile {
   displayName: string;
   role: string;
   bio: string;
+  resumeUrl?: string;
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
@@ -56,6 +65,7 @@ export default function AboutProfileEditor({ userId }: AboutProfileEditorProps) 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingResume, setUploadingResume] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImageOption[]>([]);
   const [loadingGallery, setLoadingGallery] = useState(false);
@@ -179,6 +189,7 @@ export default function AboutProfileEditor({ userId }: AboutProfileEditorProps) 
           linkedinUrl: profile.linkedinUrl,
           githubUrl: profile.githubUrl,
           portfolioUrl: profile.portfolioUrl,
+          resumeUrl: profile.resumeUrl,
           galleryImageId: profile.galleryImageId,
           imageCloudinaryId: profile.imageCloudinaryId,
           imageCloudinaryUrl: profile.imageCloudinaryUrl,
@@ -263,6 +274,55 @@ export default function AboutProfileEditor({ userId }: AboutProfileEditorProps) 
       toast.error(err instanceof Error ? err.message : 'Failed to upload image');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Resume must be less than 5MB');
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      setUploadingResume(true);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResponse = await fetch('/api/about/resume/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json().catch(() => null);
+        throw new Error(errorData?.error || 'Resume upload failed');
+      }
+
+      const data = await uploadResponse.json();
+      if (profile && data?.url) {
+        setProfile({
+          ...profile,
+          resumeUrl: data.url,
+        });
+      }
+
+      toast.success('Resume uploaded successfully');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload resume');
+    } finally {
+      setUploadingResume(false);
+      e.target.value = '';
     }
   };
 
@@ -484,9 +544,63 @@ export default function AboutProfileEditor({ userId }: AboutProfileEditorProps) 
         </div>
       </div>
 
+      {/* Resume */}
+      <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+        <div>
+          <Label>Resume (PDF)</Label>
+          <p className="text-xs text-gray-600 mt-1">
+            Upload your resume. Only PDF files up to 5MB are allowed.
+          </p>
+        </div>
+
+        <label className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 cursor-pointer hover:border-gray-400 transition">
+          {uploadingResume ? (
+            <Loader2 className="h-5 w-5 animate-spin text-gray-600" />
+          ) : (
+            <>
+              <FileText className="h-5 w-5 text-gray-600" />
+              <span className="text-sm text-gray-600">Click to upload resume PDF</span>
+            </>
+          )}
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={handleResumeUpload}
+            disabled={uploadingResume}
+            className="hidden"
+          />
+        </label>
+
+        {profile.resumeUrl ? (
+          <div className="flex items-center justify-between rounded-md border border-gray-200 p-2">
+            <a
+              href={profile.resumeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View uploaded resume
+            </a>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setProfile({ ...profile, resumeUrl: '' })}
+              className="text-red-600 hover:text-red-700"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">No resume uploaded yet</p>
+        )}
+      </div>
+
+
       {/* Actions */}
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="submit" disabled={saving || uploading}>
+        <Button type="submit" disabled={saving || uploading || uploadingResume}>
           {saving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>

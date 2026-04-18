@@ -18,6 +18,7 @@ This document outlines the About page management system implementation and testi
 - **DELETE /api/about/:id** - Delete member (admin only)
 - **GET /api/about/me** - Get current user's profile (member only)
 - **PATCH /api/about/me** - Update own profile (member only)
+- **POST /api/about/resume/upload** - Upload member resume PDF (about:self:update/about:manage)
 - **POST /api/about/reorder** - Reorder members (admin only)
 
 ### Frontend Routes
@@ -98,6 +99,7 @@ This document outlines the About page management system implementation and testi
 3. Update fields:
    - Bio
    - LinkedIn/GitHub/Portfolio URLs
+   - Upload resume PDF (Cloudinary raw upload)
    - Upload new profile image (Cloudinary)
 4. Submit
 5. Changes publish immediately (no admin approval)
@@ -109,6 +111,16 @@ This document outlines the About page management system implementation and testi
 3. Verify image uploads to Cloudinary
 4. Image URL appears in form
 5. Save and verify on public page
+
+#### Resume Upload
+1. Open `/admin/about/my-profile`
+2. Upload a PDF under 5MB
+3. Verify upload succeeds and preview link is shown
+4. Save profile
+5. Open member public profile page and verify resume icon/link appears
+6. Negative checks:
+   - Upload non-PDF and verify rejection
+   - Upload PDF larger than 5MB and verify rejection
 
 ### Phase 6: Public About Page
 

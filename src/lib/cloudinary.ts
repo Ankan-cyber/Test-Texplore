@@ -10,9 +10,9 @@ cloudinary.config({
 export interface CloudinaryUploadResult {
   public_id: string;
   secure_url: string;
-  width: number;
-  height: number;
-  format: string;
+  width?: number;
+  height?: number;
+  format?: string;
   resource_type: string;
   bytes: number;
   created_at: string;
@@ -63,14 +63,17 @@ export function generateUploadSignature(params: {
   };
 }
 
-// Upload image to Cloudinary
-export async function uploadImage(
+export type CloudinaryResourceType = 'image' | 'raw' | 'video' | 'auto';
+
+// Upload generic file to Cloudinary.
+export async function uploadFile(
   file: Buffer | string,
   options: {
     folder?: string;
     public_id?: string;
     transformation?: any;
     tags?: string[];
+    resourceType?: CloudinaryResourceType;
   } = {},
 ): Promise<CloudinaryUploadResult> {
   const uploadOptions = {
@@ -78,7 +81,7 @@ export async function uploadImage(
     public_id: options.public_id,
     transformation: options.transformation,
     tags: options.tags,
-    resource_type: 'image' as const,
+    resource_type: options.resourceType || 'auto',
   };
 
   return new Promise((resolve, reject) => {
@@ -94,12 +97,26 @@ export async function uploadImage(
     );
 
     if (typeof file === 'string') {
-      // If file is a URL or base64 string
       uploadStream.end(file);
     } else {
-      // If file is a Buffer
       uploadStream.end(file);
     }
+  });
+}
+
+// Upload image to Cloudinary
+export async function uploadImage(
+  file: Buffer | string,
+  options: {
+    folder?: string;
+    public_id?: string;
+    transformation?: any;
+    tags?: string[];
+  } = {},
+): Promise<CloudinaryUploadResult> {
+  return uploadFile(file, {
+    ...options,
+    resourceType: 'image',
   });
 }
 

@@ -187,6 +187,7 @@ export default function AdminSidebar({
   const canAccessMyAboutProfile =
     user?.permissions?.includes('about:self:update') ||
     user?.permissions?.includes('*');
+  const userImage = user?.aboutMember?.imageUrl?.trim() || user?.image?.trim();
 
   return (
     <>
@@ -474,8 +475,18 @@ export default function AdminSidebar({
           <div className="border-t border-primary/20 dark:border-primary/30 p-4 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm">
             <div className="flex items-center space-x-3">
               <div className="relative">
-                <div className="h-11 w-11 rounded-full bg-gradient-to-br from-primary to-primary/90 flex items-center justify-center shadow-lg">
-                  <User className="h-5 w-5 text-white" />
+                <div className="relative h-11 w-11 overflow-hidden rounded-full bg-gradient-to-br from-primary to-primary/90 flex items-center justify-center shadow-lg">
+                  {userImage ? (
+                    <Image
+                      src={userImage}
+                      alt={`${user?.name || 'User'} avatar`}
+                      fill
+                      sizes="44px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <User className="h-5 w-5 text-white" />
+                  )}
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
               </div>
@@ -493,7 +504,7 @@ export default function AdminSidebar({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                  className="h-8 w-8 text-black hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
                   onClick={logout}
                   title="Logout"
                 >

@@ -432,6 +432,7 @@ model AboutMember {
   galleryImage      GalleryImage? @relation(fields: [galleryImageId], references: [id], onDelete: SetNull)
   imageCloudinaryId String? // Cloudinary public ID for profile image
   imageUrl          String? // Cloudinary CDN URL (denormalized for quick access)
+  resumeUrl         String? // Cloudinary URL for member resume (PDF)
 
   // Social Links (JSON for flexibility)
   socialLinks Json? // { linkedin, github, portfolio, etc. }

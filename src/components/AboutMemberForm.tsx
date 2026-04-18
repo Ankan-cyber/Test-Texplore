@@ -15,6 +15,7 @@ interface AboutMemberFormProps {
     displayName: string;
     role: string;
     bio?: string;
+    resumeUrl?: string;
     linkedinUrl?: string;
     githubUrl?: string;
     portfolioUrl?: string;
@@ -47,6 +48,7 @@ export default function AboutMemberForm({ member, onSave, onCancel }: AboutMembe
     displayName: member?.displayName || '',
     role: member?.role || '',
     bio: member?.bio || '',
+    resumeUrl: member?.resumeUrl || '',
     linkedinUrl: member?.linkedinUrl || '',
     githubUrl: member?.githubUrl || '',
     portfolioUrl: member?.portfolioUrl || '',
@@ -232,6 +234,17 @@ export default function AboutMemberForm({ member, onSave, onCancel }: AboutMembe
             placeholder="https://yourportfolio.com"
           />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="resumeUrl">Resume URL (PDF)</Label>
+        <Input
+          id="resumeUrl"
+          type="url"
+          value={formData.resumeUrl}
+          onChange={(e) => setFormData({ ...formData, resumeUrl: e.target.value })}
+          placeholder="https://res.cloudinary.com/.../resume.pdf"
+        />
       </div>
 
       {/* Profile Photo */}

@@ -20,6 +20,7 @@ interface AboutMember {
   galleryImageId?: string;
   imageCloudinaryUrl?: string;
   bio?: string;
+  resumeUrl?: string;
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
@@ -322,6 +323,7 @@ export default function AboutManagement() {
               displayName: editingMember.displayName,
               role: editingMember.role,
               bio: editingMember.bio || '',
+              resumeUrl: editingMember.resumeUrl || '',
               linkedinUrl: editingMember.linkedinUrl || '',
               githubUrl: editingMember.githubUrl || '',
               portfolioUrl: editingMember.portfolioUrl || '',

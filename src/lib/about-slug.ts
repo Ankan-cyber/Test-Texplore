@@ -215,6 +215,7 @@ export interface ResolvedMember {
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
+  resumeUrl?: string;
   responsibilities?: string[];
 }
 

@@ -1,7 +1,15 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Linkedin, Github, Globe, Users, Mail } from 'lucide-react';
+import {
+  ArrowLeft,
+  Linkedin,
+  Github,
+  Globe,
+  Users,
+  Mail,
+  FileText,
+} from 'lucide-react';
 import type { Metadata } from 'next';
 
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +53,7 @@ function mapDbMemberToResolved(member: Record<string, any>): ResolvedMember {
     linkedinUrl: socialLinks.linkedin || undefined,
     githubUrl: socialLinks.github || undefined,
     portfolioUrl: socialLinks.portfolio || undefined,
+    resumeUrl: member.resumeUrl || undefined,
   };
 }
 
@@ -232,7 +241,8 @@ export default async function AboutMemberPage({
               {/* Socials */}
               {(member.linkedinUrl ||
                 member.githubUrl ||
-                member.portfolioUrl) && (
+                member.portfolioUrl ||
+                member.resumeUrl) && (
                 <div
                   className="flex gap-3 mt-6"
                   data-testid="member-profile-social-links"
@@ -271,6 +281,18 @@ export default async function AboutMemberPage({
                       data-testid="social-portfolio"
                     >
                       <Globe className="h-5 w-5" />
+                    </a>
+                  )}
+                  {member.resumeUrl && (
+                    <a
+                      href={member.resumeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 transition"
+                      title="Resume"
+                      data-testid="social-resume"
+                    >
+                      <FileText className="h-5 w-5" />
                     </a>
                   )}
                 </div>
