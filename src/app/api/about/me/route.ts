@@ -21,12 +21,33 @@ export async function GET() {
       return permissionResponse;
     }
 
-    const member = await AboutMembersService.getMemberByUserId(authResult.user.id);
+    let member = await AboutMembersService.getMemberByUserId(authResult.user.id);
+
+    // Auto-create a blank AboutMember for the user on first visit.
+    // Default isPublished=false so the user doesn't appear on /about
+    // until they explicitly opt in. Bio/role start empty — the user
+    // fills them in via the editor form.
     if (!member) {
-      return NextResponse.json(
-        { error: 'No about profile found for this user' },
-        { status: 404 },
-      );
+      try {
+        member = await AboutMembersService.createMember(authResult.user.id, {
+          displayName: authResult.user.name || 'New Member',
+          role: 'Member',
+          bio: null,
+          department: 'OTHER',
+          imageUrl: authResult.user.image || null,
+          imageCloudinaryId: null,
+          galleryImageId: null,
+          socialLinks: {},
+          sortOrder: 0,
+          isPublished: false,
+        });
+      } catch (createErr) {
+        console.error('Failed to auto-create about profile:', createErr);
+        return NextResponse.json(
+          { error: 'Failed to initialize about profile' },
+          { status: 500 },
+        );
+      }
     }
 
     const socialLinks =
@@ -113,6 +134,8 @@ export async function PATCH(request: NextRequest) {
           : typeof body.imageUrl === 'string'
             ? body.imageUrl
             : undefined,
+      isPublished:
+        typeof body.isPublished === 'boolean' ? body.isPublished : undefined,
       socialLinks: mergedSocialLinks,
     });
 

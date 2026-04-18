@@ -16,7 +16,22 @@
 
 ## What's Been Implemented (Jan 2026)
 
-### Jan 2026 — About Member Dedicated Profile Pages
+### Jan 2026 — Profile Auto-Provision + Schema Cleanup
+**Problem:** Logged-in users without a row in `AboutMember` saw *"No About profile created yet. Please contact an admin to create your profile."* in `/admin/about/my-profile`. Separately, the admin **Users** tab excluded any user who was linked to an `AboutMember`.
+
+**Fixes:**
+- `src/app/api/about/me/route.ts` (GET): If the user has no `AboutMember`, the endpoint now **auto-creates a blank one** (`displayName = user.name`, `role = "Member"`, `isPublished = false`). `/about` and `/about/people/[slug]` still respect `isPublished`, so auto-created cards stay hidden until the user flips the new toggle.
+- `src/components/AboutProfileEditor.tsx`: Removed the 404 error branch; added a **"Show on the public About page"** checkbox tied to `isPublished`. Save path now PATCHes `isPublished`.
+- `src/app/api/about/me/route.ts` (PATCH): Accepts `isPublished`.
+- `src/app/api/users/route.ts`: Removed the block that filtered out users with an `AboutMember` row. All users now appear in the admin Users tab regardless of about-profile status. Removed the `includeAboutProfileOnly` query param (no longer needed).
+- **Removed `User.isAboutProfileOnly`** field + index from `prisma/schema.prisma`, all call sites (`src/lib/auth.ts`, `src/components/Sidebar/index.tsx`, `src/app/api/about/route.ts`), since every authenticated user now gets an About record on demand.
+
+**Verification (curl):**
+- Member login → `GET /api/about/me` returns HTTP 200 with a freshly created `isPublished: false` record.
+- `GET /api/about` (public) returns 0 members (unpublished excluded). ✓
+- `GET /api/users` as admin returns all 5 seeded users (admin, president, vp, coordinator, member). ✓
+
+### Jan 2026 — About Member Dedicated Profile Pages + Loading Skeleton
 - Replaced the modal on `/about` with dedicated SEO-friendly URLs: `/about/people/[slug]`
 - `src/lib/about-slug.ts`: slug helpers + shared static-fallback data (leaders + department heads)
 - `src/app/(student-portal)/about/people/[slug]/page.tsx`: server-rendered profile page with:

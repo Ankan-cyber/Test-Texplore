@@ -16,7 +16,6 @@ export interface User {
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
   role: 'member' | 'coordinator' | 'vice_president' | 'president' | 'admin';
   permissions: string[];
-  isAboutProfileOnly?: boolean;
   departmentId?: string;
   profile?: {
     id: string;
@@ -50,7 +49,6 @@ function convertPrismaUserToUser(prismaUser: any): User {
     status: prismaUser.status,
     role: prismaUser.role,
     permissions: prismaUser.permissions || [],
-    isAboutProfileOnly: Boolean(prismaUser.isAboutProfileOnly),
     departmentId: prismaUser.departmentId,
     profile: prismaUser.profile,
   };

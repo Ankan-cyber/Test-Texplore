@@ -149,8 +149,7 @@ export async function POST(request: NextRequest) {
             'about:self:update',
             'gallery:upload',
           ],
-          isAboutProfileOnly: true,
-        } as any,
+        },
       });
 
       userId = createdUser.id;

@@ -95,7 +95,6 @@ model User {
   // Simplified Role & Permissions
   role        Role
   permissions String[] // Direct permission array
-  isAboutProfileOnly Boolean @default(false)
 
   // Department
   departmentId String?     @db.ObjectId
@@ -124,7 +123,6 @@ model User {
 
   @@index([role])
   @@index([status])
-  @@index([isAboutProfileOnly])
   @@index([departmentId])
   @@index([assignedById])
 }
