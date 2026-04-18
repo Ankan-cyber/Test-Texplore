@@ -41,6 +41,8 @@ export type Permission =
   | 'about:self:update'
   // Settings Management
   | 'settings:access'
+  // Security / Audit
+  | 'security:logs:read'
   // Website Management (removed - unused)
   // Admin Features
   | 'admin:dashboard';
@@ -86,6 +88,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   'about:self:update',
   // Settings Management
   'settings:access',
+  // Security / Audit
+  'security:logs:read',
   // Website Management (removed)
   // Admin Features
   'admin:dashboard',
@@ -139,6 +143,9 @@ export const PERMISSION_GROUPS = {
   ],
   'Settings Management': [
     'settings:access',
+  ],
+  'Security & Audit': [
+    'security:logs:read',
   ],
   // 'Website Management': [],
   'Admin Features': ['admin:dashboard'],
@@ -413,6 +420,10 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   // Settings Management
   'settings:access': 'Access settings page and change password',
 
+  // Security & Audit
+  'security:logs:read':
+    'View security audit logs and system activity history',
+
   // Website Management (removed)
 
   // Admin Features
@@ -429,6 +440,7 @@ export interface AccessibleFeatures {
   joinClubManagement: boolean;
   websiteSettings: boolean;
   reports: boolean;
+  securityLogs: boolean;
 }
 
 // Convenience functions for common permission checks
@@ -557,5 +569,8 @@ export function getAccessibleFeatures(user: {
       ]) || user.role === 'admin',
     websiteSettings: hasPermission(permissions, 'settings:access'),
     reports: user.role === 'admin',
+    securityLogs:
+      hasPermission(permissions, 'security:logs:read') ||
+      user.role === 'admin',
   };
 }

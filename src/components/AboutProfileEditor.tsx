@@ -484,29 +484,6 @@ export default function AboutProfileEditor({ userId }: AboutProfileEditorProps) 
         </div>
       </div>
 
-      {/* Visibility toggle */}
-      <div className="rounded-lg border border-gray-200 p-4">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={profile.isPublished ?? false}
-            onChange={(e) =>
-              setProfile({ ...profile, isPublished: e.target.checked })
-            }
-            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-            data-testid="about-profile-published-toggle"
-          />
-          <div className="flex-1">
-            <span className="text-sm font-medium text-gray-900">
-              Show on the public About page
-            </span>
-            <p className="text-xs text-gray-600 mt-1">
-              When enabled, your profile card appears on <code>/about</code> and has a dedicated profile page. Keep this off while you fill in your details.
-            </p>
-          </div>
-        </label>
-      </div>
-
       {/* Actions */}
       <div className="flex justify-end gap-2 pt-4">
         <Button type="submit" disabled={saving || uploading}>

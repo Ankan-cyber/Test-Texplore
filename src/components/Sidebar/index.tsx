@@ -21,6 +21,7 @@ import {
   Sparkles,
   Mail,
   UserPlus,
+  ShieldAlert,
 } from 'lucide-react';
 import Image from 'next/image';
 import { User as UserType } from '@/lib/auth';
@@ -43,6 +44,7 @@ interface AccessibleFeatures {
   joinClubManagement: boolean;
   websiteSettings: boolean;
   reports: boolean;
+  securityLogs: boolean;
 }
 
 interface AdminSidebarProps {
@@ -94,6 +96,13 @@ const sidebarItems: SidebarItem[] = [
     icon: UserPlus,
     description: 'Applications',
     permissionKey: 'joinClubManagement',
+  },
+  {
+    title: 'Security Logs',
+    href: '/admin/security',
+    icon: ShieldAlert,
+    description: 'Audit trail & SIEM',
+    permissionKey: 'securityLogs',
   },
   {
     title: 'Settings',
