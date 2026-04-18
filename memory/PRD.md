@@ -25,6 +25,7 @@
   - Bio section + focus areas (responsibilities) for department heads
   - Quick Facts sidebar + "Get in touch" contact card
   - "Meet other team members" grid linking to other profile slugs
+- `src/app/(student-portal)/about/people/[slug]/loading.tsx`: skeleton that shows instantly during navigation so clicking a member no longer feels stuck.
 - `src/components/About.tsx`: replaced `onClick={setSelectedMember}` + `<Dialog>` modal with `<Link href="/about/people/[slug]">` — **both DB-backed and static fallback members are clickable**
 - Supports DB-backed members (when About API is available) with automatic fallback to static data in `src/lib/about-slug.ts`
 - Tested end-to-end: navigation, breadcrumbs, back link, static-leader profile, static-department-head profile, and cross-links in "other members" all verified via Playwright
