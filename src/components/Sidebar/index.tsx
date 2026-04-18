@@ -169,11 +169,9 @@ export default function AdminSidebar({
   };
 
   // Filter sidebar items based on user permissions
-  const filteredSidebarItems = user?.isAboutProfileOnly
-    ? []
-    : accessibleFeatures
-      ? sidebarItems.filter((item) => accessibleFeatures[item.permissionKey])
-      : sidebarItems;
+  const filteredSidebarItems = accessibleFeatures
+    ? sidebarItems.filter((item) => accessibleFeatures[item.permissionKey])
+    : sidebarItems;
   const canManageAbout =
     user?.permissions?.includes('about:manage') ||
     user?.permissions?.includes('*');

@@ -58,10 +58,6 @@ const querySchema = z.object({
   department: z.string().optional(),
   role: z.string().optional(),
   status: z.string().optional(),
-  includeAboutProfileOnly: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((val) => val === 'true'),
 });
 
 // Generate a temporary password
@@ -311,21 +307,6 @@ export async function GET(request: NextRequest) {
 
     // Build where clause for filtering
     const where: Prisma.UserWhereInput = {};
-
-    if (!query.includeAboutProfileOnly) {
-      // Exclude About-only users by excluding users that are linked to AboutMember.
-      // This avoids relying on Prisma client regeneration timing for new User fields.
-      const aboutModel = (prisma as unknown as { aboutMember?: any }).aboutMember;
-      if (aboutModel) {
-        const linked = await aboutModel.findMany({
-          select: { userId: true },
-        });
-        const linkedUserIds = linked.map((entry: { userId: string }) => entry.userId);
-        if (linkedUserIds.length > 0) {
-          where.NOT = { id: { in: linkedUserIds } };
-        }
-      }
-    }
 
     if (query.search) {
       where.OR = [
